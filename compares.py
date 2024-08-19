@@ -79,10 +79,10 @@ def make_syn():
         os.makedirs(data_path, exist_ok=True)
         # The synthetic data from all the data
         full_syn_path = os.path.join(data_path, 'full')
-        os.makedirs(full_data_path, exist_ok=True)
+        os.makedirs(full_syn_path, exist_ok=True)
         # The synthetic data from part of the data
         part_syn_path = os.path.join(data_path, 'part')
-        os.makedirs(part_data_path, exist_ok=True)
+        os.makedirs(part_syn_path, exist_ok=True)
         # The metadata
         meta_path = os.path.join(data_path, 'meta')
         os.makedirs(meta_path, exist_ok=True)
