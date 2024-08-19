@@ -94,9 +94,9 @@ def make_syn():
         os.makedirs(part_raw_path, exist_ok=True)
 
         df_test_raw = df.sample(n=1000, random_state=42)
-        df_test_raw.to_parquet(test_raw_path)
+        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
         df_part_raw = df.drop(df_test_raw.index)
-        df_part_raw.to_parquet(part_raw_path)
+        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
 
         # Make and save the metadata
         metadata = SingleTableMetadata()
@@ -113,15 +113,15 @@ def make_syn():
         synthesizer.fit(df)
         df_syn = synthesizer.sample(num_rows=len(df))
         print(df_syn.head())
-        df_syn.to_csv(full_syn_path, index=False)
-        df_syn.to_parquet(full_syn_path, index=False)
+        df_test_raw.to_csv(os.path.join(test_raw_path, f'{file_base}.csv'), index=False)
+        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
         # Synthesize the partial dataset
         synthesizer = CTGANSynthesizer(metadata)
         synthesizer.fit(df_part_raw)
         df_syn = synthesizer.sample(num_rows=len(df_part_raw))
         print(df_syn.head())
-        df_syn.to_csv(part_syn_path, index=False)
-        df_syn.to_parquet(part_syn_path, index=False)
+        df_test_raw.to_csv(os.path.join(test_raw_path, f'{file_base}.csv'), index=False)
+        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
         pass
     pass
 
