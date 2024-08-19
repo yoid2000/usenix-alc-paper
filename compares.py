@@ -280,15 +280,15 @@ def make_config():
         meta_path = os.path.join(data_path, 'meta', f'{file_base}.json')
         with open(meta_path, 'r') as f:
             meta_data = json.load(f)
-        for secret_column in meta_data['columns']:
-            print(f"table {file_base}, secret_column: {secret_column} is {secret_column['sdtype']}")
-            if secret_column['sdtype'] != 'categorical':
+        for secret_column, col_type in meta_data['columns'].items():
+            print(f"table {file_base}, secret_column: {secret_column} is {col_type}")
+            if col_type != 'categorical':
                 continue
             columns = list(meta_data['columns'].keys())
-            aux_cols = [col for col in columns if col not in secret]
+            aux_cols = [col for col in columns if col not in secret_column]
             measure_jobs.append({
                 'dir_name': file_base,
-                'secret': secret,
+                'secret': secret_column,
                 'aux_cols': aux_cols,
             })
     random.shuffle(measure_jobs)
