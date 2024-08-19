@@ -39,22 +39,8 @@ class ALScore:
             return self._cov_adjust_strength
         return None
 
-    def _underlying_prec_cov_curve(self):
-        pi1 = 1.0    # PI intercept at low coverage
-        cov2, pi2 = 1.0, 0.0    # PI and coverage intercept at high coverage
-        m = (pi2 - pi1) / (np.log10(cov2) - np.log10(self._cov_adjust_min_intercept))
-        # m = (0-1) / (np.log10(1)-np.log10(self._cov_adjust_min_intercept))
-        # m = -1 / (0 - log10(Cmin))
-        # m = 1 / log10(Cmin)
-        b = pi1 - m * np.log10(self._cov_adjust_min_intercept)
-        return m, b
-
     def _cov_adjust(self, cov):
-        #m, b = self._underlying_prec_cov_curve()
-        #adjust = (m * np.log10(cov) + b) ** self._cov_adjust_strength
         adjust = (np.log10(cov)/ np.log10(self._cov_adjust_min_intercept)) ** self._cov_adjust_strength
-        # Note: reverse of this is:
-        # COV = 10 ** ((PI ** (1/self._cov_adjust_strength) - b) / m)
         return 1 - adjust
 
     def _pcc_improve_absolute(self, pcc_base, pcc_attack):
@@ -75,13 +61,11 @@ class ALScore:
         '''
         if cov <= self._cov_adjust_min_intercept:
             return cov
-        #cov_adj = self._cov_adjust(cov)
         Cmin = self._cov_adjust_min_intercept
         alpha = self._cov_adjust_strength
         C = cov
         P = prec
         return (1-((np.log10(C)/ np.log10(Cmin)) ** alpha)) * P
-        #return cov_adj * prec
 
     def alscore(self,
                 p_base = None,
