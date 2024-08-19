@@ -83,24 +83,23 @@ def make_one_syn(job_num):
     if job_num % 2 == 0:
         # Do the full dataset
         print(f"Do full: job_num {job_num}, file_num {file_num}, file_base {file_base}")
-        this_syn_path = os.path.join(data_path, 'full')
-        pass
+        parquet_path = os.path.join(orig_path, file_name)
+        this_syn_path = os.path.join(data_path, 'full_syn')
     else:
         # Do the part dataset
         print(f"Do part: job_num {job_num}, file_num {file_num}, file_base {file_base}")
-        this_syn_path = os.path.join(data_path, 'part')
-        pass
-    pass
+        parquet_path = os.path.join(data_path, 'part_raw')
+        this_syn_path = os.path.join(data_path, 'part_syn')
+    df = pd.read_parquet(parquet_path)
 
-    if False:
-        # Synthesize the full dataset
-        synthesizer = CTGANSynthesizer(metadata)
-        synthesizer.fit(df)
-        df_syn = synthesizer.sample(num_rows=len(df))
-        print(df_syn.head())
-        df_test_raw.to_csv(os.path.join(test_raw_path, f'{file_base}.csv'), index=False)
-        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
-        pass
+    # Synthesize the full dataset
+    metadata = SingleTableMetadata()
+    metadata.detect_from_dataframe(df)
+    synthesizer = CTGANSynthesizer(metadata)
+    synthesizer.fit(df)
+    df_syn = synthesizer.sample(num_rows=len(df))
+    df_syn.to_csv(os.path.join(this_syn_path, f'{file_base}.csv'), index=False)
+    df_syn.to_parquet(os.path.join(this_syn_path, f'{file_base}.parquet'), index=False)
 
 def make_syn():
     files = os.listdir(orig_path)
