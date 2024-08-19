@@ -142,7 +142,7 @@ def make_syn():
         with open(meta_path, 'w') as f:
             json.dump(sdv_metadata, f, indent=4)
 
-    exe_path = os.path.join(code_path, 'compare_attack.py')
+    exe_path = os.path.join(code_path, 'compares.py')
     venv_path = os.path.join(base_path, '.venv', 'bin', 'activate')
     slurm_dir = os.path.join(base_path, 'slurm_out')
     os.makedirs(slurm_dir, exist_ok=True)
@@ -150,10 +150,10 @@ def make_syn():
     num_jobs = (len(files) * 2) - 1
     # Define the slurm template
     slurm_template = f'''#!/bin/bash
-#SBATCH --job-name=compare_attack
+#SBATCH --job-name=make_syn
 #SBATCH --output={slurm_out}
 #SBATCH --time=7-0
-#SBATCH --mem=16G
+#SBATCH --mem=64G
 #SBATCH --cpus-per-task=1
 #SBATCH --array=0-{num_jobs}
 arrayNum="${{SLURM_ARRAY_TASK_ID}}"
