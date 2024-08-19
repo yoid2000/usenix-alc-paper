@@ -94,7 +94,9 @@ def make_syn():
         os.makedirs(part_raw_path, exist_ok=True)
 
         df_test_raw = df.sample(n=1000, random_state=42)
+        df_test_raw.to_parquet(test_raw_path)
         df_part_raw = df.drop(df_test_raw.index)
+        df_part_raw.to_parquet(part_raw_path)
 
         # Make and save the metadata
         metadata = SingleTableMetadata()
@@ -104,7 +106,22 @@ def make_syn():
         metadata.validate_data(data=df)
         meta_path = os.path.join(meta_path, f'{file_base}.json')
         with open(meta_path, 'w') as f:
-            json.dump(sdv_metadata, f)
+            json.dump(sdv_metadata, f, indent=4)
+
+        # Synthesize the full dataset
+        synthesizer = CTGANSynthesizer(metadata)
+        synthesizer.fit(df)
+        df_syn = synthesizer.sample(num_rows=len(df))
+        print(df_syn.head())
+        df_syn.to_csv(full_syn_path, index=False)
+        df_syn.to_parquet(full_syn_path, index=False)
+        # Synthesize the partial dataset
+        synthesizer = CTGANSynthesizer(metadata)
+        synthesizer.fit(df_part_raw)
+        df_syn = synthesizer.sample(num_rows=len(df_part_raw))
+        print(df_syn.head())
+        df_syn.to_csv(part_syn_path, index=False)
+        df_syn.to_parquet(part_syn_path, index=False)
         pass
     pass
 
