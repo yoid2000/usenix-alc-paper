@@ -90,6 +90,8 @@ def make_one_syn(job_num):
         print(f"Do part: job_num {job_num}, file_num {file_num}, file_base {file_base}")
         parquet_path = os.path.join(data_path, 'part_raw')
         this_syn_path = os.path.join(data_path, 'part_syn')
+    print(f"Reading file at {parquet_path}")
+    print(f"Will write synthetic data to {this_syn_path}")
     df = pd.read_parquet(parquet_path)
 
     # Synthesize the full dataset
