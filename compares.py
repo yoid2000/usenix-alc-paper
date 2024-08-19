@@ -281,8 +281,8 @@ def make_config():
         with open(meta_path, 'r') as f:
             meta_data = json.load(f)
         for secret_column, col_type in meta_data['columns'].items():
-            print(f"table {file_base}, secret_column: {secret_column} is {col_type}")
-            if col_type != 'categorical':
+            print(f"table {file_base}, secret_column: {secret_column} is {col_type['sdtype']}")
+            if col_type['sdtype'] != 'categorical':
                 continue
             columns = list(meta_data['columns'].keys())
             aux_cols = [col for col in columns if col not in secret_column]
