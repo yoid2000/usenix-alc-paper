@@ -165,7 +165,6 @@ python {exe_path} make_one_syn $arrayNum
     # write the slurm template to a file attack.slurm
     with open(os.path.join(base_path, 'make_syn.slurm'), 'w', encoding='utf-8') as f:
         f.write(slurm_template)
-    pass
 
 def init_variants():
     for v_label in variants.keys():
@@ -281,74 +280,45 @@ def make_config():
         meta_path = os.path.join(data_path, 'meta', f'{file_base}.json')
         with open(meta_path, 'r') as f:
             meta_data = json.load(f)
-
-    zzzz
-
-    # Loop over each directory name in syn_path
-    for num_known in num_known_columns:
-        attacks_so_far = 0
-        while attacks_so_far < num_attacks:
-            for dir_name in os.listdir(syn_path):
-                dataset_path = os.path.join(syn_path, dir_name, 'compares')
-                # Check if dataset_path exists
-                if not os.path.exists(dataset_path):
-                    continue
-                tm = TablesManager(dir_path=dataset_path)
-                columns = list(tm.df_orig.columns)
-                pid_cols = tm.get_pid_cols()
-                if len(pid_cols) > 0:
-                    # We can't really run the attack on time-series data
-                    continue
-                for secret in columns:
-                    # We are only setup to test on categorical columns
-                    if tm.orig_meta_data['column_classes'][secret] == 'continuous':
-                        continue
-                    aux_cols = []
-                    if num_known != -1:
-                        aux_cols = [col for col in columns if col not in secret]
-                        if len(aux_cols) < num_known:
-                            # We can't make enough aux_cols for the experiment, so just
-                            # skip this secret
-                            attacks_so_far += num_attacks_per_job
-                            continue
-                        aux_cols = random.sample(aux_cols, num_known)
-                    attack_jobs.append({
-                        'dir_name': dir_name,
-                        'secret': secret,
-                        'num_runs': num_attacks_per_job,
-                        'num_known': num_known,
-                        'aux_cols': aux_cols,
-                    })
-                    attacks_so_far += num_attacks_per_job
-    # randomize the order in which the attack_jobs are run
-    random.shuffle(attack_jobs)
-    for index, job in enumerate(attack_jobs):
+        for secret_column in meta_data['columns']:
+            print(f"table {file_base}, secret_column: {secret_column} is {secret_column['sdtype']}")
+            if secret_column['sdtype'] != 'categorical':
+                continue
+            columns = list(meta_data['columns'].keys())
+            aux_cols = [col for col in columns if col not in secret]
+            measure_jobs.append({
+                'dir_name': file_base,
+                'secret': secret,
+                'aux_cols': aux_cols,
+            })
+    random.shuffle(measure_jobs)
+    for index, job in enumerate(measure_jobs):
         job['index'] = index
 
     # Write attack_jobs into a JSON file
-    with open(os.path.join(attack_path, 'attack_jobs.json'), 'w') as f:
-        json.dump(attack_jobs, f, indent=4)
+    with open(os.path.join(base_path, 'measure_jobs.json'), 'w') as f:
+        json.dump(measure_jobs, f, indent=4)
 
-    exe_path = os.path.join(code_path, 'compare_attack.py')
+    exe_path = os.path.join(code_path, 'compares.py')
     venv_path = os.path.join(base_path, 'sdx_venv', 'bin', 'activate')
     slurm_dir = os.path.join(attack_path, 'slurm_out')
     os.makedirs(slurm_dir, exist_ok=True)
     slurm_out = os.path.join(slurm_dir, 'out.%a.out')
-    num_jobs = len(attack_jobs) - 1
+    num_jobs = len(measure_jobs) - 1
     # Define the slurm template
     slurm_template = f'''#!/bin/bash
-#SBATCH --job-name=compare_attack
+#SBATCH --job-name=measures
 #SBATCH --output={slurm_out}
 #SBATCH --time=7-0
-#SBATCH --mem=16G
+#SBATCH --mem=32G
 #SBATCH --cpus-per-task=1
 #SBATCH --array=0-{num_jobs}
 arrayNum="${{SLURM_ARRAY_TASK_ID}}"
 source {venv_path}
-python {exe_path} $arrayNum
+python {exe_path} measure $arrayNum
 '''
-    # write the slurm template to a file attack.slurm
-    with open(os.path.join(attack_path, 'attack.slurm'), 'w', encoding='utf-8') as f:
+    # write the slurm template to a file measure.slurm
+    with open(os.path.join(base_path, 'measure.slurm'), 'w', encoding='utf-8') as f:
         f.write(slurm_template)
 
 def get_valid_combs(tm, secret_col, aux_cols):
