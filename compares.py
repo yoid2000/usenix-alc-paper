@@ -1181,7 +1181,7 @@ def main():
     measure_parser = subparsers.add_parser('measure', help="Run measure with an integer")
     measure_parser.add_argument("job_num", type=int, help="An integer to pass to make_syn()")
     subparsers.add_parser('make_syn', help="Run make_syn")
-    subparsers.add_parser('make_config', help="Run make_config")
+    subparsers.add_parser('config', help="Run make_config")
     subparsers.add_parser('stats', help="Run stats")
     subparsers.add_parser('test', help="Run test")
     subparsers.add_parser('plots', help="Run plots")
