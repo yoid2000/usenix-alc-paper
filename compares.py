@@ -78,19 +78,19 @@ def make_syn():
         data_path = os.path.join(syn_path, file_base)
         os.makedirs(data_path, exist_ok=True)
         # The synthetic data from all the data
-        full_syn_path = os.path.join(syn_path, 'full')
-        os.makedirs(full_syn_path, exist_ok=True)
+        full_syn_path = os.path.join(data_path, 'full')
+        os.makedirs(full_data_path, exist_ok=True)
         # The synthetic data from part of the data
-        part_syn_path = os.path.join(syn_path, 'part')
-        os.makedirs(part_syn_path, exist_ok=True)
+        part_syn_path = os.path.join(data_path, 'part')
+        os.makedirs(part_data_path, exist_ok=True)
         # The metadata
-        meta_path = os.path.join(syn_path, 'meta')
+        meta_path = os.path.join(data_path, 'meta')
         os.makedirs(meta_path, exist_ok=True)
         # The rows to attack
-        test_raw_path = os.path.join(syn_path, 'raw')
+        test_raw_path = os.path.join(data_path, 'raw')
         os.makedirs(test_raw_path, exist_ok=True)
         # The data to use for the ALC baseline
-        part_raw_path = os.path.join(syn_path, 'raw')
+        part_raw_path = os.path.join(data_path, 'raw')
         os.makedirs(part_raw_path, exist_ok=True)
 
         df_test_raw = df.sample(n=1000, random_state=42)
