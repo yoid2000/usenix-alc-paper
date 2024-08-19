@@ -17,9 +17,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from collections import Counter
 from alscore import ALScore
+#import sdv
 from sdv.metadata import SingleTableMetadata
-import sdv
 from sdv.single_table import CTGANSynthesizer
+from sdv.single_table import CopulaGANSynthesizer
 import pprint
 
 pp = pprint.PrettyPrinter(indent=4)
@@ -97,7 +98,7 @@ def make_one_syn(job_num):
     # Synthesize the full dataset
     metadata = SingleTableMetadata()
     metadata.detect_from_dataframe(df)
-    synthesizer = CTGANSynthesizer(metadata)
+    synthesizer = CopulaGANSynthesizer(metadata)
     synthesizer.fit(df)
     df_syn = synthesizer.sample(num_rows=len(df))
     df_syn.to_csv(os.path.join(this_syn_path, f'{file_base}.csv'), index=False)
@@ -269,13 +270,19 @@ def attack_stats():
 
 def make_config():
     ''' I want to generate num_attacks attacks. Each attack will be on a given secret
-    column in a given table with given known columns. I will run multiple of these
-    attacks per secret/table if necessary.
+    column in a given table with given known columns.
     '''
+    measure_jobs = []
+    files = os.listdir(orig_path)
+    for file_name in files:
+        # strip '.parquet'
+        file_base = file_name[:-8]
+        data_path = os.path.join(syn_path, file_base)
+        meta_path = os.path.join(data_path, 'meta', f'{file_base}.json')
+        with open(meta_path, 'r') as f:
+            meta_data = json.load(f)
 
-    num_known_columns = [-1]
-    # Initialize attack_jobs
-    attack_jobs = []
+    zzzz
 
     # Loop over each directory name in syn_path
     for num_known in num_known_columns:
