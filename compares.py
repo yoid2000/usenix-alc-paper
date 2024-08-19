@@ -68,6 +68,40 @@ col_comb_thresholds = {
 
 num_known_config = {'num_known_all': 'all', 'num_known_3': '3', 'num_known_6': '6'}
 
+def measure(job_num):
+    pass
+
+def make_one_syn(job_num):
+    files = os.listdir(orig_path)
+    file_num = int(job_num / 2)
+    if file_num >= len(files):
+        print(f"file_num {file_num} from {job_num} is out of range")
+        sys.exit(1)
+    file_name = files[file_num]
+    file_base = file_name[:-8]
+    data_path = os.path.join(syn_path, file_base)
+    if job_num % 2 == 0:
+        # Do the full dataset
+        print(f"Do full: job_num {job_num}, file_num {file_num}, file_base {file_base}")
+        this_syn_path = os.path.join(data_path, 'full')
+        pass
+    else:
+        # Do the part dataset
+        print(f"Do part: job_num {job_num}, file_num {file_num}, file_base {file_base}")
+        this_syn_path = os.path.join(data_path, 'part')
+        pass
+    pass
+
+    if False:
+        # Synthesize the full dataset
+        synthesizer = CTGANSynthesizer(metadata)
+        synthesizer.fit(df)
+        df_syn = synthesizer.sample(num_rows=len(df))
+        print(df_syn.head())
+        df_test_raw.to_csv(os.path.join(test_raw_path, f'{file_base}.csv'), index=False)
+        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
+        pass
+
 def make_syn():
     files = os.listdir(orig_path)
     for file_name in files:
@@ -87,7 +121,7 @@ def make_syn():
         meta_path = os.path.join(data_path, 'meta')
         os.makedirs(meta_path, exist_ok=True)
         # The rows to attack
-        test_raw_path = os.path.join(data_path, 'raw')
+        test_raw_path = os.path.join(data_path, 'test')
         os.makedirs(test_raw_path, exist_ok=True)
         # The data to use for the ALC baseline
         part_raw_path = os.path.join(data_path, 'raw')
@@ -96,7 +130,7 @@ def make_syn():
         df_test_raw = df.sample(n=1000, random_state=42)
         df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
         df_part_raw = df.drop(df_test_raw.index)
-        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
+        df_part_raw.to_parquet(os.path.join(part_raw_path, f'{file_base}.parquet'), index=False)
 
         # Make and save the metadata
         metadata = SingleTableMetadata()
@@ -108,21 +142,27 @@ def make_syn():
         with open(meta_path, 'w') as f:
             json.dump(sdv_metadata, f, indent=4)
 
-        # Synthesize the full dataset
-        synthesizer = CTGANSynthesizer(metadata)
-        synthesizer.fit(df)
-        df_syn = synthesizer.sample(num_rows=len(df))
-        print(df_syn.head())
-        df_test_raw.to_csv(os.path.join(test_raw_path, f'{file_base}.csv'), index=False)
-        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
-        # Synthesize the partial dataset
-        synthesizer = CTGANSynthesizer(metadata)
-        synthesizer.fit(df_part_raw)
-        df_syn = synthesizer.sample(num_rows=len(df_part_raw))
-        print(df_syn.head())
-        df_test_raw.to_csv(os.path.join(test_raw_path, f'{file_base}.csv'), index=False)
-        df_test_raw.to_parquet(os.path.join(test_raw_path, f'{file_base}.parquet'), index=False)
-        pass
+    exe_path = os.path.join(code_path, 'compare_attack.py')
+    venv_path = os.path.join(base_path, '.venv', 'bin', 'activate')
+    slurm_dir = os.path.join(base_path, 'slurm_out')
+    os.makedirs(slurm_dir, exist_ok=True)
+    slurm_out = os.path.join(slurm_dir, 'out.%a.out')
+    num_jobs = (len(files) * 2) - 1
+    # Define the slurm template
+    slurm_template = f'''#!/bin/bash
+#SBATCH --job-name=compare_attack
+#SBATCH --output={slurm_out}
+#SBATCH --time=7-0
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=1
+#SBATCH --array=0-{num_jobs}
+arrayNum="${{SLURM_ARRAY_TASK_ID}}"
+source {venv_path}
+python {exe_path} make_one_syn $arrayNum
+'''
+    # write the slurm template to a file attack.slurm
+    with open(os.path.join(base_path, 'make_syn.slurm'), 'w', encoding='utf-8') as f:
+        f.write(slurm_template)
     pass
 
 def init_variants():
@@ -289,7 +329,7 @@ def make_config():
     num_jobs = len(attack_jobs) - 1
     # Define the slurm template
     slurm_template = f'''#!/bin/bash
-#SBATCH --job-name=anonymeter_attack
+#SBATCH --job-name=compare_attack
 #SBATCH --output={slurm_out}
 #SBATCH --time=7-0
 #SBATCH --mem=16G
@@ -1157,25 +1197,38 @@ def do_tests():
 
 def main():
     parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command")
+    make_one_syn_parser = subparsers.add_parser('make_one_syn', help="Run make_one_syn with an integer")
+    make_one_syn_parser.add_argument("job_num", type=int, help="An integer to pass to make_one_syn()")
+    measure_parser = subparsers.add_parser('measure', help="Run measure with an integer")
+    measure_parser.add_argument("job_num", type=int, help="An integer to pass to make_syn()")
+    subparsers.add_parser('make_syn', help="Run make_syn")
+    subparsers.add_parser('make_config', help="Run make_config")
+    subparsers.add_parser('stats', help="Run stats")
+    subparsers.add_parser('test', help="Run test")
+    subparsers.add_parser('plots', help="Run plots")
+    
+    args = parser.parse_args()
+
     parser.add_argument("command", help="'config' to run make_config(), or an integer to run run_attacks()")
     args = parser.parse_args()
 
-    if args.command == 'make_syn':
+    if args.command == 'measure':
+        measure(args.job_num)
+    elif args.command == 'make_one_syn':
+        make_one_syn(args.job_num)
+    elif args.command == 'make_syn':
         make_syn()
-    if args.command == 'config':
+    elif args.command == 'config':
         make_config()
-    if args.command == 'stats':
+    elif args.command == 'stats':
         attack_stats()
-    if args.command == 'test':
+    elif args.command == 'test':
         do_tests()
     elif args.command == 'plots':
         do_plots()
     else:
-        try:
-            job_num = int(args.command)
-            run_attack(job_num)
-        except ValueError:
-            print(f"Unknown command: {args.command}")
+        print(f"Unknown command: {args.command}")
 
 if __name__ == "__main__":
     main()
