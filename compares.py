@@ -1210,9 +1210,6 @@ def main():
     
     args = parser.parse_args()
 
-    parser.add_argument("command", help="'config' to run make_config(), or an integer to run run_attacks()")
-    args = parser.parse_args()
-
     if args.command == 'measure':
         measure(args.job_num)
     elif args.command == 'make_one_syn':
