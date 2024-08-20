@@ -69,9 +69,6 @@ col_comb_thresholds = {
 
 num_known_config = {'num_known_all': 'all', 'num_known_3': '3', 'num_known_6': '6'}
 
-def measure(job_num):
-    pass
-
 def make_one_syn(job_num):
     files = os.listdir(orig_path)
     file_num = int(job_num / 2)
@@ -91,6 +88,9 @@ def make_one_syn(job_num):
         print(f"Do part: job_num {job_num}, file_num {file_num}, file_base {file_base}")
         parquet_path = os.path.join(data_path, 'part_raw')
         this_syn_path = os.path.join(data_path, 'part_syn')
+    if os.path.exists(os.path.join(this_syn_path, f'{file_base}.csv')):
+        print(f"File already exists at {this_syn_path}. Quitting...")
+        return
     print(f"Reading file at {parquet_path}")
     print(f"Will write synthetic data to {this_syn_path}")
     df = pd.read_parquet(parquet_path)
@@ -335,15 +335,38 @@ def get_valid_combs(tm, secret_col, aux_cols):
             valid_combs.append(catalog_entry['columns'])
     return valid_combs
 
-def do_inference_attacks(tm, secret_col, secret_col_type, aux_cols, regression, df_original, df_control, df_syn, num_runs):
-    ''' df_original and df_control have all columns.
-        df_syn has only the columns in aux_cols and secret_col.
+def do_inference_attacks(job, job_num):
+    instances_path = os.path.join(base_path, 'instances')
+    # Make a file_name and file_path
+    # make a string that contains the column names in job['columns'] separated by '_'
+    file_name = f"{job['dir_name']}.{job_num}.json"
+    file_path = os.path.join(instances_path, file_name)
 
-        df_syn is the synthetic data generated from df_original.
-        df_control is disjoint from df_original
-    '''
+    if os.path.exists(file_path):
+        if job['num_known'] == -1:
+            print(f"File already exists: {file_path}")
+            return
+    data_path = os.path.join(syn_path, job['dir_name'])
+    # We'll run the attacks on the full_syn_path
+    full_syn_path = os.path.join(data_path, 'full_syn')
+    df_full_syn = pd.read_parquet(full_syn_path)
+    # For stadler and gioni, we do baseline on part_syn_path
+    part_syn_path = os.path.join(data_path, 'part_syn')
+    df_part_syn = pd.read_parquet(part_syn_path)
+    # The rows to attack
+    test_raw_path = os.path.join(data_path, 'test')
+    df_test = pd.read_parquet(test_raw_path)
+    # We do ALC baseline on part_raw_path
+    part_raw_path = os.path.join(data_path, 'part_raw')
+    df_part_raw = pd.read_parquet(part_raw_path)
+
+    # set aux_cols to all columns except the secret column
+    aux_cols = [col for col in df_full_syn.columns if col not in [job['secret']]]
+    regression = False
+    target_type = 'categorical'
     # Because I'm modeling the control and syn dataframes, and because the models
     # don't play well with string or datetime types, I'm just going to convert everthing
+    zzzz
     df_original = convert_datetime_to_timestamp(df_original)
     df_control = convert_datetime_to_timestamp(df_control)
     df_syn = convert_datetime_to_timestamp(df_syn)
@@ -574,8 +597,8 @@ def do_inference_attacks(tm, secret_col, secret_col_type, aux_cols, regression, 
     return attacks
 
 
-def run_attack(job_num):
-    with open(os.path.join(attack_path, 'attack_jobs.json'), 'r') as f:
+def measure(job_num):
+    with open(os.path.join(base_path, 'measure_jobs.json'), 'r') as f:
         jobs = json.load(f)
 
     # Make sure job_num is within the range of jobs, and if not, print an error message and exit
@@ -585,43 +608,7 @@ def run_attack(job_num):
 
     # Get the job
     job = jobs[job_num]
-
-    # Create 'instances' directory in attack_path if it isn't already there
-    instances_path = os.path.join(attack_path, 'instances')
-    os.makedirs(instances_path, exist_ok=True)
-
-    # Make a file_name and file_path
-    # make a string that contains the column names in job['columns'] separated by '_'
-    file_name = f"{job['dir_name']}.{job['secret']}.{job_num}.json"
-    file_path = os.path.join(instances_path, file_name)
-
-    if os.path.exists(file_path):
-        if job['num_known'] == -1:
-            print(f"File already exists: {file_path}")
-            return
-    dataset_path = os.path.join(syn_path, job['dir_name'], 'compare')
-    control_path = os.path.join(dataset_path, 'control.parquet')
-    # read the control file into a DataFrame
-    df_control = pd.read_parquet(control_path)
-    # Make a TablesManager object
-    tm = TablesManager(dir_path=dataset_path)
-    # First, run the attack on the full synthetic dataset
-    df_syn = tm.get_syn_df()
-    print(f"df_syn has shape {df_syn.shape} and columns {df_syn.columns}")
-    # set aux_cols to all columns except the secret column
-    aux_cols = [col for col in df_syn.columns if col not in [job['secret']]]
-    if job['num_known'] != -1:
-        # select num_known columns from aux_cols
-        aux_cols = random.sample(aux_cols, job['num_known'])
-    if tm.orig_meta_data['column_classes'][job['secret']] == 'continuous':
-        regression = True
-        target_type = 'continuous'
-        print(f"We are no longer doing continuous secret column attacks: {job}")
-        sys.exit(1)
-    else:
-        regression = False
-        target_type = 'categorical'
-    attacks = do_inference_attacks(tm, job['secret'], target_type, aux_cols, regression, tm.df_orig, df_control, df_syn, job['num_runs'])
+    attacks = do_inference_attacks(job, job_num)
     with open(file_path, 'w') as f:
         json.dump(attacks, f, indent=4)
 
