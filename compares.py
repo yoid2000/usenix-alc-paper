@@ -125,7 +125,7 @@ def make_syn():
 
     exe_path = os.path.join(code_path, 'compares.py')
     venv_path = os.path.join(base_path, '.venv', 'bin', 'activate')
-    slurm_dir = os.path.join(base_path, 'slurm_out')
+    slurm_dir = os.path.join(base_path, 'slurm_syn_out')
     os.makedirs(slurm_dir, exist_ok=True)
     slurm_out = os.path.join(slurm_dir, 'out.%a.out')
     num_jobs = (len(files) * 2) - 1
@@ -280,7 +280,7 @@ def make_config():
 
     exe_path = os.path.join(code_path, 'compares.py')
     venv_path = os.path.join(base_path, 'sdx_venv', 'bin', 'activate')
-    slurm_dir = os.path.join(attack_path, 'slurm_out')
+    slurm_dir = os.path.join(attack_path, 'slurm_measure_out')
     os.makedirs(slurm_dir, exist_ok=True)
     slurm_out = os.path.join(slurm_dir, 'out.%a.out')
     num_jobs = len(measure_jobs) - 1
