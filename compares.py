@@ -443,6 +443,14 @@ def do_inference_measures(job, job_num):
         this_attack['stadler_base_answer'] = int(stadler_base_answer)
 
         # Run the giomi attack
+        df_target_cols = df_target.columns
+        df_target_types = df_target.dtypes
+        print(f'df_target columns: {df_target_cols}')
+        print(f'df_target types: {df_target_types}')
+        df_full_syn_cols = df_full_syn.columns
+        df_full_syn_types = df_full_syn.dtypes
+        print(f'df_full_syn columns: {df_full_syn_cols}')
+        print(f'df_full_syn types: {df_full_syn_types}')
         ans = anonymeter_mods.run_anonymeter_attack(
                                         targets=df_target,
                                         basis=df_full_syn[attack_cols],
