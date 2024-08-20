@@ -319,19 +319,25 @@ def do_inference_measures(job, job_num):
     # We'll run the attacks on the full_syn_path
     full_syn_path = os.path.join(data_path, 'full_syn', f'{job["dir_name"]}.parquet')
     df_full_syn = pd.read_parquet(full_syn_path)
+    print(f'df_full_syn shape: {df_full_syn.shape}')
     # For stadler and gioni, we do baseline on part_syn_path
     part_syn_path = os.path.join(data_path, 'part_syn', f'{job["dir_name"]}.parquet')
     df_part_syn = pd.read_parquet(part_syn_path)
+    print(f'df_part_syn shape: {df_part_syn.shape}')
     # The rows to attack
     test_path = os.path.join(data_path, 'test', f'{job["dir_name"]}.parquet')
     df_test = pd.read_parquet(test_path)
+    print(f'df_test shape: {df_test.shape}')
     # We do ALC baseline on part_raw_path
     part_raw_path = os.path.join(data_path, 'part_raw', f'{job["dir_name"]}.parquet')
     df_part_raw = pd.read_parquet(part_raw_path)
+    print(f'df_part_raw shape: {df_part_raw.shape}')
 
     # set aux_cols to all columns except the secret column
     aux_cols = [col for col in df_full_syn.columns if col not in [job['secret']]]
+    print(f'aux_cols: {aux_cols}')
     secret_col = job['secret']
+    print(f'secret_col: {secret_col}')
     regression = False
     secret_col_type = 'categorical'
     # Because I'm modeling the control and syn dataframes, and because the models
@@ -347,6 +353,7 @@ def do_inference_measures(job, job_num):
     df_part_raw = transform_df(df_part_raw, encoders)
     df_test = transform_df(df_test, encoders)
     attack_cols = aux_cols + [secret_col]
+    print(f'attack_cols: {attack_cols}')
     print("build alc baseline model")
     model_part_raw = build_and_train_model(df_part_raw[attack_cols], secret_col, secret_col_type)
     # model_attack is used to generate a groundhog day type attack
@@ -354,6 +361,9 @@ def do_inference_measures(job, job_num):
     model_part_syn = build_and_train_model(df_part_syn[attack_cols], secret_col, secret_col_type)
     print("build stadler attack model")
     model_full_syn = build_and_train_model(df_full_syn[attack_cols], secret_col, secret_col_type)
+
+    num_exact_matches = df_test[df_test.isin(df_part_raw)].dropna().shape[0]
+    print(f'There are {num_exact_matches} exact matches between df_test and df_part_raw')
 
     num_alc_base_correct = 0
     num_stadler_attack_correct = 0
@@ -438,7 +448,6 @@ def do_inference_measures(job, job_num):
         this_attack['stadler_base_answer'] = int(stadler_base_answer)
 
         # Run the giomi attack
-        giomi_attack_pred_values = []
         ans = anonymeter_mods.run_anonymeter_attack(
                                         targets=df_target,
                                         basis=df_full_syn[attack_cols],
@@ -447,7 +456,6 @@ def do_inference_measures(job, job_num):
                                         regression=regression)
         giomi_attack_pred_value_series = ans['guess_series']
         giomi_attack_pred_value = giomi_attack_pred_value_series.iloc[0]
-        giomi_attack_pred_values.append(giomi_attack_pred_value)
         giomi_attack_answer = anonymeter_mods.evaluate_inference_guesses(guesses=giomi_attack_pred_value_series, secrets=df_target[secret_col], regression=regression).sum()
         if giomi_attack_answer not in [0,1]:
             print(f"Error: unexpected giomi_attack_answer {giomi_attack_answer}")
@@ -457,7 +465,6 @@ def do_inference_measures(job, job_num):
         this_attack['giomi_attack_answer'] = int(giomi_attack_answer)
 
         # Run the giomi baseline
-        giomi_base_pred_values = []
         ans = anonymeter_mods.run_anonymeter_attack(
                                         targets=df_target,
                                         basis=df_part_syn[attack_cols],
@@ -466,7 +473,6 @@ def do_inference_measures(job, job_num):
                                         regression=regression)
         giomi_base_pred_value_series = ans['guess_series']
         giomi_base_pred_value = giomi_base_pred_value_series.iloc[0]
-        giomi_base_pred_values.append(giomi_base_pred_value)
         giomi_base_answer = anonymeter_mods.evaluate_inference_guesses(guesses=giomi_base_pred_value_series, secrets=df_target[secret_col], regression=regression).sum()
         if giomi_base_answer not in [0,1]:
             print(f"Error: unexpected giomi_base_answer {giomi_base_answer}")
