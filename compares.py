@@ -299,7 +299,7 @@ def get_valid_combs(tm, secret_col, aux_cols):
             valid_combs.append(catalog_entry['columns'])
     return valid_combs
 
-def align_column_types(df, df2):
+def align_column_types(df, df2, df2_name):
     # Get the column types of the reference dataframe
     df_types = df.dtypes
     
@@ -310,7 +310,7 @@ def align_column_types(df, df2):
     differing_columns = df_types[df_types != df2_types]
     
     if not differing_columns.empty:
-        print(f"DataFrame at index {i} has differing column types:")
+        print(f"DataFrame {df2_name} has differing column types:")
         print(differing_columns)
         
         # Force the differing columns to match the types of df
@@ -358,9 +358,9 @@ def do_inference_measures(job, job_num):
     df_part_raw = transform_df(df_part_raw, encoders)
     df_test = transform_df(df_test, encoders)
 
-    df_part_syn = align_column_types(df_part_raw, df_part_syn)
-    df_full_syn = align_column_types(df_part_raw, df_full_syn)
-    df_test = align_column_types(df_part_raw, df_test)
+    df_part_syn = align_column_types(df_part_raw, df_part_syn, 'df_part_syn')
+    df_full_syn = align_column_types(df_part_raw, df_full_syn, 'df_full_syn')
+    df_test = align_column_types(df_part_raw, df_test, 'df_test')
 
     attack_cols = aux_cols + [secret_col]
     print(f'attack_cols: {attack_cols}')
@@ -398,7 +398,7 @@ def do_inference_measures(job, job_num):
     for index, row in df_test.iterrows():
         # My old code had the row as a df, so convert here for backwards compatibility
         df_target = row.to_frame().T
-        df_target = align_column_types(df_part_raw, df_target)
+        df_target = align_column_types(df_part_raw, df_target, 'df_target')
 
         print(".", end='', flush=True)
         secret_value = df_target[secret_col].iloc[0]
