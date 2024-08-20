@@ -48,27 +48,6 @@ num_attacks_per_job = 100
 max_subsets = 200
 debug = False
 
-# These are the variants of the attack that exploits sub-tables
-variants = {
-            'syn_meter_vanilla':[],
-            'syn_meter_modal':[],
-            'syn_meter_modal_50':[],
-            'syn_meter_modal_90':[],
-            'base_meter_vanilla':[],
-            'base_meter_modal':[],
-            'base_meter_modal_50':[],
-            'base_meter_modal_90':[],
-}
-variant_labels = [ 'vanilla', 'modal', 'modal_50', 'modal_90', ]
-# These are the thresholds we use to decide whether to use a prediction
-col_comb_thresholds = {
-                            'thresh_0':0,
-                            'thresh_50':50,
-                            'thresh_90':90,
-}
-
-num_known_config = {'num_known_all': 'all', 'num_known_3': '3', 'num_known_6': '6'}
-
 def make_one_syn(job_num):
     files = os.listdir(orig_path)
     file_num = int(job_num / 2)
@@ -362,50 +341,49 @@ def do_inference_attacks(job, job_num):
 
     # set aux_cols to all columns except the secret column
     aux_cols = [col for col in df_full_syn.columns if col not in [job['secret']]]
+    secret_col = job['secret']
     regression = False
-    target_type = 'categorical'
+    secret_col_type = 'categorical'
     # Because I'm modeling the control and syn dataframes, and because the models
     # don't play well with string or datetime types, I'm just going to convert everthing
-    #zzzz
-    df_original = convert_datetime_to_timestamp(df_original)
-    df_control = convert_datetime_to_timestamp(df_control)
-    df_syn = convert_datetime_to_timestamp(df_syn)
-    encoders = fit_encoders([df_original, df_control, df_syn])
+    df_full_syn = convert_datetime_to_timestamp(df_full_syn)
+    df_part_syn = convert_datetime_to_timestamp(df_part_syn)
+    df_part_raw = convert_datetime_to_timestamp(df_part_raw)
+    df_test = convert_datetime_to_timestamp(df_test)
+    encoders = fit_encoders([df_part_raw, df_full_syn, df_part_syn, df_test])
 
-    df_original = transform_df(df_original, encoders)
-    df_control = transform_df(df_control, encoders)
-    df_syn = transform_df(df_syn, encoders)
+    df_full_syn = transform_df(df_full_syn, encoders)
+    df_part_syn = transform_df(df_part_syn, encoders)
+    df_part_raw = transform_df(df_part_raw, encoders)
+    df_test = transform_df(df_test, encoders)
     attack_cols = aux_cols + [secret_col]
-    # model_base is the baseline built from an ML model
-    print("build baseline model")
-    model_base = build_and_train_model(df_control[attack_cols], secret_col, secret_col_type)
+    print("build alc baseline model")
+    model_part_raw = build_and_train_model(df_part_raw[attack_cols], secret_col, secret_col_type)
     # model_attack is used to generate a groundhog day type attack
-    print("build attack model")
-    model_attack = build_and_train_model(df_syn[attack_cols], secret_col, secret_col_type)
-    # model_original is used simply to demonstrate the ineffectiveness of the groundhog attack
-    print("build original model")
-    model_original = build_and_train_model(df_original[attack_cols], secret_col, secret_col_type)
+    print("build stadler baseline model")
+    model_part_syn = build_and_train_model(df_part_syn[attack_cols], secret_col, secret_col_type)
+    print("build stadler attack model")
+    model_full_syn = build_and_train_model(df_full_syn[attack_cols], secret_col, secret_col_type)
 
-    num_model_base_correct = 0
-    num_model_attack_correct = 0
-    num_model_original_correct = 0
-    num_syn_correct = 0
-    num_meter_base_correct = 0
+    num_alc_base_correct = 0
+    num_stadler_attack_correct = 0
+    num_stadler_base_correct = 0
+    num_giomi_attack_correct = 0
+    num_giomi_base_correct = 0
+
     attacks = []
-    modal_value = df_original[secret_col].mode().iloc[0]
-    num_modal_rows = df_original[df_original[secret_col] == modal_value].shape[0]
-    modal_percentage = round(100*(num_modal_rows / len(df_original)), 2)
-    print(f"start {num_runs} runs")
-    for i in range(num_runs):
-        init_variants()
+    modal_value = df_part_raw[secret_col].mode().iloc[0]
+    num_modal_rows = df_part_raw[df_part_raw[secret_col] == modal_value].shape[0]
+    modal_percentage = round(100*(num_modal_rows / len(df_part_raw)), 2)
+    for index, row in df_test.iterrows():
+        # My old code had the row as a df, so convert here for backwards compatibility
+        df_target = row.to_frame().T
+
         print(".", end='', flush=True)
-        # There is a chance of replicas here, but small enough that we ignore it
-        targets = df_original[attack_cols].sample(1)
-        # Get the value of the secret column in the first row of targets
-        secret_value = targets[secret_col].iloc[0]
+        secret_value = df_target[secret_col].iloc[0]
         # Count the number of rows that contian secret_value in column secret_col
-        num_secret_rows = df_original[secret_col].value_counts().get(secret_value, 0)
-        secret_percentage = round(100*(num_secret_rows / len(df_original)), 2)
+        num_secret_rows = df_part_raw[secret_col].value_counts().get(secret_value, 0)
+        secret_percentage = round(100*(num_secret_rows / len(df_part_raw)), 2)
         this_attack = {
             'secret_value': str(secret_value),
             'secret_percentage': secret_percentage,
@@ -415,185 +393,100 @@ def do_inference_attacks(job, job_num):
             'num_known_cols': len(aux_cols),
             'known_cols': str(aux_cols),
         }
-        # Now get the model baseline prediction
+        # Now get the alc baseline prediction
         try:
-            model_base_pred_value = model_base.predict(targets.drop(secret_col, axis=1))
+            alc_base_pred_value = model_part_raw.predict(df_target.drop(secret_col, axis=1))
             # proba[0] is a list of probability values, indexed by the column values
-            proba = model_base.predict_proba(targets.drop(secret_col, axis=1))
-            model_base_pred_value = model_base_pred_value[0]
+            proba = model_part_raw.predict_proba(df_target.drop(secret_col, axis=1))
+            alc_base_pred_value = alc_base_pred_value[0]
         except Exception as e:
-            print(f"A model.predict() Error occurred: {e}")
+            print(f"A model_part_raw.predict() Error occurred: {e}")
             sys.exit(1)
         # convert model_base_pred_value to a series
-        model_base_pred_value_series = pd.Series(model_base_pred_value, index=targets.index)
-        model_base_answer = anonymeter_mods.evaluate_inference_guesses(guesses=model_base_pred_value_series, secrets=targets[secret_col], regression=regression).sum()
-        if model_base_answer not in [0,1]:
-            print(f"Error: unexpected answer {model_base_answer}")
+        alc_base_pred_value_series = pd.Series(alc_base_pred_value, index=df_target.index)
+        alc_base_answer = anonymeter_mods.evaluate_inference_guesses(guesses=alc_base_pred_value_series, secrets=df_target[secret_col], regression=regression).sum()
+        if alc_base_answer not in [0,1]:
+            print(f"Error: unexpected alc_base_answer {alc_base_answer}")
             sys.exit(1)
-        num_model_base_correct += model_base_answer
-        this_attack['model_base_pred_value'] = str(model_base_pred_value)
-        this_attack['model_base_answer'] = int(model_base_answer)
-        this_attack['model_base_probability'] = float(proba[0][int(model_base_pred_value)])
+        num_alc_base_correct += alc_base_answer
+        this_attack['alc_base_pred_value'] = str(alc_base_pred_value)
+        this_attack['alc_base_answer'] = int(alc_base_answer)
+        this_attack['alc_base_probability'] = float(proba[0][int(alc_base_pred_value)])
 
-        # Now run the model attack
+        # Now run the stadler attack
         try:
-            model_attack_pred_value = model_attack.predict(targets.drop(secret_col, axis=1))
-            model_attack_pred_value = model_attack_pred_value[0]
+            stadler_attack_pred_value = model_full_syn.predict(df_target.drop(secret_col, axis=1))
+            stadler_attack_pred_value = stadler_attack_pred_value[0]
         except Exception as e:
             print(f"A model.predict() Error occurred: {e}")
             sys.exit(1)
-        # convert model_attack_pred_value to a series
-        model_attack_pred_value_series = pd.Series(model_attack_pred_value, index=targets.index)
-        model_attack_answer = anonymeter_mods.evaluate_inference_guesses(guesses=model_attack_pred_value_series, secrets=targets[secret_col], regression=regression).sum()
-        if model_attack_answer not in [0,1]:
-            print(f"Error: unexpected answer {model_attack_answer}")
+        # convert stadler_attack_pred_value to a series
+        stadler_attack_pred_value_series = pd.Series(stadler_attack_pred_value, index=df_target.index)
+        stadler_attack_answer = anonymeter_mods.evaluate_inference_guesses(guesses=stadler_attack_pred_value_series, secrets=df_target[secret_col], regression=regression).sum()
+        if stadler_attack_answer not in [0,1]:
+            print(f"Error: unexpected stadler_attack_answer {stadler_attack_answer}")
             sys.exit(1)
-        num_model_attack_correct += model_attack_answer
-        this_attack['model_attack_pred_value'] = str(model_attack_pred_value)
-        this_attack['model_attack_answer'] = int(model_attack_answer)
+        num_stadler_attack_correct += stadler_attack_answer
+        this_attack['stadler_attack_pred_value'] = str(stadler_attack_pred_value)
+        this_attack['stadler_attack_answer'] = int(stadler_attack_answer)
 
-        # Now run the model attack using the groundhog model
+        # Now run the stadler baseline
         try:
-            model_original_pred_value = model_original.predict(targets.drop(secret_col, axis=1))
-            model_original_pred_value = model_original_pred_value[0]
+            stadler_base_pred_value = model_part_syn.predict(df_target.drop(secret_col, axis=1))
+            stadler_base_pred_value = stadler_base_pred_value[0]
         except Exception as e:
             print(f"A model.predict() Error occurred: {e}")
             sys.exit(1)
-        # convert model_original_pred_value to a series
-        model_original_pred_value_series = pd.Series(model_original_pred_value, index=targets.index)
-        model_original_answer = anonymeter_mods.evaluate_inference_guesses(guesses=model_original_pred_value_series, secrets=targets[secret_col], regression=regression).sum()
-        if model_original_answer not in [0,1]:
-            print(f"Error: unexpected answer {model_original_answer}")
+        # convert stadler_base_pred_value to a series
+        stadler_base_pred_value_series = pd.Series(stadler_base_pred_value, index=df_target.index)
+        stadler_base_answer = anonymeter_mods.evaluate_inference_guesses(guesses=stadler_base_pred_value_series, secrets=df_target[secret_col], regression=regression).sum()
+        if stadler_base_answer not in [0,1]:
+            print(f"Error: unexpected stadler_base_answer {stadler_base_answer}")
             sys.exit(1)
-        num_model_original_correct += model_original_answer
-        this_attack['model_original_pred_value'] = str(model_original_pred_value)
-        this_attack['model_original_answer'] = int(model_original_answer)
+        num_stadler_base_correct += stadler_base_answer
+        this_attack['stadler_base_pred_value'] = str(stadler_base_pred_value)
+        this_attack['stadler_base_answer'] = int(stadler_base_answer)
 
-        # Run the anonymeter-style attack on the synthetic data
-        syn_meter_pred_values = []
+        # Run the giomi attack
+        giomi_attack_pred_values = []
         ans = anonymeter_mods.run_anonymeter_attack(
-                                        targets=targets,
-                                        basis=df_syn[attack_cols],
+                                        targets=df_target,
+                                        basis=df_full_syn[attack_cols],
                                         aux_cols=aux_cols,
                                         secret=secret_col,
                                         regression=regression)
-        syn_meter_pred_value_series = ans['guess_series']
-        syn_meter_pred_value = syn_meter_pred_value_series.iloc[0]
-        syn_meter_pred_values.append(syn_meter_pred_value)
-        syn_meter_answer = anonymeter_mods.evaluate_inference_guesses(guesses=syn_meter_pred_value_series, secrets=targets[secret_col], regression=regression).sum()
-        if syn_meter_answer not in [0,1]:
-            print(f"Error: unexpected answer {syn_meter_answer}")
+        giomi_attack_pred_value_series = ans['guess_series']
+        giomi_attack_pred_value = giomi_attack_pred_value_series.iloc[0]
+        giomi_attack_pred_values.append(giomi_attack_pred_value)
+        giomi_attack_answer = anonymeter_mods.evaluate_inference_guesses(guesses=giomi_attack_pred_value_series, secrets=df_target[secret_col], regression=regression).sum()
+        if giomi_attack_answer not in [0,1]:
+            print(f"Error: unexpected giomi_attack_answer {giomi_attack_answer}")
             sys.exit(1)
-        num_syn_correct += syn_meter_answer
-        this_attack['syn_meter_pred_value'] = str(syn_meter_pred_value)
-        this_attack['syn_meter_answer'] = int(syn_meter_answer)
+        num_giomi_attack_correct += giomi_attack_answer
+        this_attack['giomi_attack_pred_value'] = str(giomi_attack_pred_value)
+        this_attack['giomi_attack_answer'] = int(giomi_attack_answer)
 
-        # Run the anonymeter-style attack on the control data for the baseline
+        # Run the giomi baseline
+        giomi_base_pred_values = []
         ans = anonymeter_mods.run_anonymeter_attack(
-                                        targets=targets,
-                                        basis=df_control[attack_cols],
+                                        targets=df_target,
+                                        basis=df_part_syn[attack_cols],
                                         aux_cols=aux_cols,
                                         secret=secret_col,
                                         regression=regression)
-        base_meter_pred_value_series = ans['guess_series']
-        base_meter_pred_value = base_meter_pred_value_series.iloc[0]
-        base_meter_answer = anonymeter_mods.evaluate_inference_guesses(guesses=base_meter_pred_value_series, secrets=targets[secret_col], regression=regression).sum()
-        if base_meter_answer not in [0,1]:
-            print(f"Error: unexpected answer {base_meter_answer}")
+        giomi_base_pred_value_series = ans['guess_series']
+        giomi_base_pred_value = giomi_base_pred_value_series.iloc[0]
+        giomi_base_pred_values.append(giomi_base_pred_value)
+        giomi_base_answer = anonymeter_mods.evaluate_inference_guesses(guesses=giomi_base_pred_value_series, secrets=df_target[secret_col], regression=regression).sum()
+        if giomi_base_answer not in [0,1]:
+            print(f"Error: unexpected giomi_base_answer {giomi_base_answer}")
             sys.exit(1)
-        num_meter_base_correct += base_meter_answer
-        this_attack['base_meter_pred_value'] = str(base_meter_pred_value)
-        this_attack['base_meter_answer'] = int(base_meter_answer)
+        num_giomi_base_correct += giomi_base_answer
+        this_attack['giomi_base_pred_value'] = str(giomi_base_pred_value)
+        this_attack['giomi_base_answer'] = int(giomi_base_answer)
 
-        # Now, we want to run the anonymeter-style attack on every valid
-        # synthetic dataset. We will use this additional information to decide
-        # if the anonymeter-style attack on the full dataset is correct or not.
-        num_subset_combs = 0
-        num_subset_correct = 0
-        col_combs = get_valid_combs(tm, secret_col, aux_cols)
-        #print(f"Running with total {max_subsets} of {len(col_combs)} column combinations")
-        if len(col_combs) > max_subsets:
-            col_combs = random.sample(col_combs, max_subsets)
-        this_attack['num_subsets'] = len(col_combs)
-        for col_comb in col_combs:
-            # First run attack on synthetic data
-            df_syn_subset = tm.get_syn_df(col_comb)
-            df_syn_subset = convert_datetime_to_timestamp(df_syn_subset)
-            df_syn_subset = transform_df_with_update(df_syn_subset, encoders)
-            subset_aux_cols = col_comb.copy()
-            subset_aux_cols.remove(secret_col)
-            ans_syn = anonymeter_mods.run_anonymeter_attack(
-                                            targets=targets[col_comb],
-                                            basis=df_syn_subset[col_comb],
-                                            aux_cols=subset_aux_cols,
-                                            secret=secret_col,
-                                            regression=regression)
-            # Compute an answer based on the vanilla anonymeter attack
-            pred_value_series = ans_syn['guess_series']
-            pred_value = pred_value_series.iloc[0]
-            variants['syn_meter_vanilla'].append(pred_value)
-
-            # Compute an answer based on the modal anonymeter attack
-            variants['syn_meter_modal'].append(ans_syn['match_modal_value'])	
-
-            # Compute an answer only if the modal value is more than 50% of the possible answers
-            if ans_syn['match_modal_percentage'] > 50:
-                variants['syn_meter_modal_50'].append(ans_syn['match_modal_value'])
-
-            # Compute an answer only if the modal value is more than 90% of the possible answers
-            if ans_syn['match_modal_percentage'] > 90:
-                variants['syn_meter_modal_90'].append(ans_syn['match_modal_value'])
-
-            # Then run attack on control data for the baseline
-            ans_base = anonymeter_mods.run_anonymeter_attack(
-                                            targets=targets[col_comb],
-                                            basis=df_control[col_comb],
-                                            aux_cols=subset_aux_cols,
-                                            secret=secret_col,
-                                            regression=regression)
-            # Compute an answer based on the vanilla anonymeter attack
-            pred_value_series = ans_base['guess_series']
-            pred_value = pred_value_series.iloc[0]
-            variants['base_meter_vanilla'].append(pred_value)
-
-            # Compute an answer based on the modal anonymeter attack
-            variants['base_meter_modal'].append(ans_base['match_modal_value'])	
-
-            # Compute an answer only if the modal value is more than 50% of the possible answers
-            if ans_base['match_modal_percentage'] > 50:
-                variants['base_meter_modal_50'].append(ans_base['match_modal_value'])
-
-            # Compute an answer only if the modal value is more than 90% of the possible answers
-            if ans_base['match_modal_percentage'] > 90:
-                variants['base_meter_modal_90'].append(ans_base['match_modal_value'])
-
-        if debug:
-            print(f"variants:")
-            pp.pprint(variants)
-        # We want to filter again according to the amount of agreement among the
-        # different column combinations
-        for v_label, pred_values in variants.items():
-            if debug:
-                print(f"v_label: {v_label}")
-                print(f"pred_values: {pred_values}")
-            for cc_label, cc_thresh in col_comb_thresholds.items():
-                label = f"{v_label}_{cc_label}"
-                pred_value = find_most_frequent_value(pred_values, cc_thresh/100)
-                if pred_value is not None:
-                    pred_value_series = pd.Series(pred_value, index=targets.index)
-                    answer = anonymeter_mods.evaluate_inference_guesses(guesses=pred_value_series, secrets=targets[secret_col], regression=regression).sum()
-                else:
-                    answer = -1     # no prediction
-                this_attack[f'{label}_value'] = str(pred_value)
-                this_attack[f'{label}_answer'] = int(answer)
-
-        if debug:
-            print(f"this_attack:")
-            pp.pprint(this_attack)
         attacks.append(this_attack)
-        #print('---------------------------------------------------')
-        #pp.pprint(attacks[-1])
-    print(f"\nnum_model_base_correct: {num_model_base_correct}\nnum_syn_correct: {num_syn_correct}\nnum_meter_base_correct: {num_meter_base_correct}\nnum_model_attack_correct: {num_model_attack_correct}\nnum_model_original_correct: {num_model_original_correct}")
+    print(f"\nnum_alc_base_correct: {num_alc_base_correct}\nnum_stadler_attack_correct: {num_stadler_attack_correct}\nnum_stadler_base_correct: {num_stadler_base_correct}\nnum_giomi_attack_correct: {num_giomi_attack_correct}\nnum_giomi_base_correct: {num_giomi_base_correct}")
     return attacks
 
 
@@ -601,12 +494,10 @@ def measure(job_num):
     with open(os.path.join(base_path, 'measure_jobs.json'), 'r') as f:
         jobs = json.load(f)
 
-    # Make sure job_num is within the range of jobs, and if not, print an error message and exit
     if job_num < 0 or job_num >= len(jobs):
         print(f"Invalid job number: {job_num}")
         return
 
-    # Get the job
     job = jobs[job_num]
     attacks = do_inference_attacks(job, job_num)
     with open(file_path, 'w') as f:
@@ -882,21 +773,6 @@ def get_by_metric_from_by_slice(stats):
     stats['problem_cases'] = problem_cases
     stats['info']['num_problem_cases'] = num_problem_cases
 
-def digin(df):
-    df = df.copy()
-    print("---------------------------------------------------")
-    for low, high in [[0,10], [10,20], [20,30], [30,40], [40,50], [50,60], [60,70], [70,80], [80,90], [90,100]]:
-        num_rows_high_true = df[(df['modal_value'] == df['secret_value']) & (df['modal_percentage'] > low) & (df['modal_percentage'] < high) & (df['high_syn_meter_answer'] == 1)].shape[0]
-        num_rows_high_false = df[(df['modal_value'] == df['secret_value']) & (df['modal_percentage'] > low) & (df['modal_percentage'] < high) & (df['high_syn_meter_answer'] == 0)].shape[0]
-        frac_true = round(100*(num_rows_high_true / (num_rows_high_true + num_rows_high_false + 0.00001)), 2)
-        print(f"{low}-{high} percent true = {frac_true} ({num_rows_high_true}, {num_rows_high_false})")
-    print("---------------------------------------------------")
-    for low, high in [[0,10], [10,20], [20,30], [30,40], [40,50], [50,60], [60,70], [70,80], [80,90], [90,100]]:
-        num_rows_true = df[(df['modal_value'] == df['secret_value']) & (df['modal_percentage'] > low) & (df['modal_percentage'] <= high)].shape[0]
-        num_rows = df[(df['modal_percentage'] > low) & (df['modal_percentage'] <= high)].shape[0]
-        frac_true = round(100*(num_rows_true / (num_rows + 0.00001)), 2)
-        print(f"{low}-{high} precision = {frac_true} ({num_rows_true}, {num_rows})")
-
 
 def df_compare(df1: pd.DataFrame, df2: pd.DataFrame) -> int:
     # Ensure the dataframes have the same columns and index
@@ -953,7 +829,6 @@ def run_stats_for_subsets(stats, df, df_all):
         slice_name = f"cat_dataset_{bin_value}"
         stats['by_slice'][slice_name] = {}
         get_basic_stats(stats['by_slice'][slice_name], df_bin, df_all_bin, stats['info'], len(df_bin), 'dataset', bin_value, slice_name=slice_name)
-    #digin(df_cat)
     #pp.pprint(stats)
     get_by_metric_from_by_slice(stats)
 
