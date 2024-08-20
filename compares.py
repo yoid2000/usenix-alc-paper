@@ -299,6 +299,26 @@ def get_valid_combs(tm, secret_col, aux_cols):
             valid_combs.append(catalog_entry['columns'])
     return valid_combs
 
+def align_column_types(df, df2):
+    # Get the column types of the reference dataframe
+    df_types = df.dtypes
+    
+    # Get the column types of the current dataframe in the list
+    df2_types = df2.dtypes
+    
+    # Check for differences in column types
+    differing_columns = df_types[df_types != df2_types]
+    
+    if not differing_columns.empty:
+        print(f"DataFrame at index {i} has differing column types:")
+        print(differing_columns)
+        
+        # Force the differing columns to match the types of df
+        for col in differing_columns.index:
+            df2[col] = df2[col].astype(df_types[col])
+                
+    return df2
+
 def do_inference_measures(job, job_num):
     data_path = os.path.join(syn_path, job['dir_name'])
     # We'll run the attacks on the full_syn_path
@@ -337,6 +357,11 @@ def do_inference_measures(job, job_num):
     df_part_syn = transform_df(df_part_syn, encoders)
     df_part_raw = transform_df(df_part_raw, encoders)
     df_test = transform_df(df_test, encoders)
+
+    df_part_syn = align_column_types(df_part_raw, df_part_syn)
+    df_full_syn = align_column_types(df_part_raw, df_full_syn)
+    df_test = align_column_types(df_part_raw, df_test)
+
     attack_cols = aux_cols + [secret_col]
     print(f'attack_cols: {attack_cols}')
     print("build alc baseline model")
@@ -373,6 +398,7 @@ def do_inference_measures(job, job_num):
     for index, row in df_test.iterrows():
         # My old code had the row as a df, so convert here for backwards compatibility
         df_target = row.to_frame().T
+        df_target = align_column_types(df_part_raw, df_target)
 
         print(".", end='', flush=True)
         secret_value = df_target[secret_col].iloc[0]
@@ -443,14 +469,6 @@ def do_inference_measures(job, job_num):
         this_attack['stadler_base_answer'] = int(stadler_base_answer)
 
         # Run the giomi attack
-        df_target_cols = df_target.columns
-        df_target_types = df_target.dtypes
-        print(f'df_target columns: {df_target_cols}')
-        print(f'df_target types: {df_target_types}')
-        df_full_syn_cols = df_full_syn.columns
-        df_full_syn_types = df_full_syn.dtypes
-        print(f'df_full_syn columns: {df_full_syn_cols}')
-        print(f'df_full_syn types: {df_full_syn_types}')
         ans = anonymeter_mods.run_anonymeter_attack(
                                         targets=df_target,
                                         basis=df_full_syn[attack_cols],
