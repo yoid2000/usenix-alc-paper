@@ -366,6 +366,14 @@ def do_inference_measures(job, job_num):
     num_exact_matches = exact_matches.shape[0]
     print(f'There are {num_exact_matches} exact matches between df_test and df_part_raw')
     print(exact_matches.head(5))
+    exact_matches = df_part_syn[df_part_syn.isin(df_part_raw)].dropna()
+    num_exact_matches = exact_matches.shape[0]
+    print(f'There are {num_exact_matches} exact matches between df_part_syn and df_part_raw')
+    print(exact_matches.head(5))
+    exact_matches = df_full_syn[df_full_syn.isin(df_part_raw)].dropna()
+    num_exact_matches = exact_matches.shape[0]
+    print(f'There are {num_exact_matches} exact matches between df_full_syn and df_part_raw')
+    print(exact_matches.head(5))
 
     num_alc_base_correct = 0
     num_stadler_attack_correct = 0
