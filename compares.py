@@ -314,17 +314,7 @@ def get_valid_combs(tm, secret_col, aux_cols):
             valid_combs.append(catalog_entry['columns'])
     return valid_combs
 
-def do_inference_attacks(job, job_num):
-    instances_path = os.path.join(base_path, 'instances')
-    # Make a file_name and file_path
-    # make a string that contains the column names in job['columns'] separated by '_'
-    file_name = f"{job['dir_name']}.{job_num}.json"
-    file_path = os.path.join(instances_path, file_name)
-
-    if os.path.exists(file_path):
-        if job['num_known'] == -1:
-            print(f"File already exists: {file_path}")
-            return
+def do_inference_measures(job, job_num):
     data_path = os.path.join(syn_path, job['dir_name'])
     # We'll run the attacks on the full_syn_path
     full_syn_path = os.path.join(data_path, 'full_syn', f'{job["dir_name"]}.parquet')
@@ -499,9 +489,19 @@ def measure(job_num):
         return
 
     job = jobs[job_num]
-    attacks = do_inference_attacks(job, job_num)
+    instances_path = os.path.join(base_path, 'instances')
+    # Make a file_name and file_path
+    # make a string that contains the column names in job['columns'] separated by '_'
+    file_name = f"{job['dir_name']}.{job_num}.json"
+    file_path = os.path.join(instances_path, file_name)
+
+    if os.path.exists(file_path):
+        if job['num_known'] == -1:
+            print(f"File already exists: {file_path}")
+            return
+    measures = do_inference_measures(job, job_num)
     with open(file_path, 'w') as f:
-        json.dump(attacks, f, indent=4)
+        json.dump(measures, f, indent=4)
 
 def gather(instances_path):
     attacks = []
