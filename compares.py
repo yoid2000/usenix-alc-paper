@@ -317,7 +317,7 @@ def align_column_types(df, df2, df2_name):
                 
     return df2
 
-def do_inference_measures(job, job_num):
+def do_inference_measures(job):
     data_path = os.path.join(syn_path, job['dir_name'])
     # We'll run the attacks on the full_syn_path
     full_syn_path = os.path.join(data_path, 'full_syn', f'{job["dir_name"]}.parquet')
@@ -406,11 +406,11 @@ def do_inference_measures(job, job_num):
         this_attack = {
             'secret_value': str(secret_value),
             'secret_percentage': secret_percentage,
-            'secret_col_type': secret_col_type,
+            'secret_col': secret_col,
+            'dataset': job['dir_name'],
             'modal_value': str(modal_value),
             'modal_percentage': modal_percentage,
             'num_known_cols': len(aux_cols),
-            'known_cols': str(aux_cols),
         }
         # Now get the alc baseline prediction
         try:
@@ -523,7 +523,7 @@ def measure(job_num):
     if os.path.exists(file_path):
         print(f"File already exists at {file_path}. Quitting...")
         return
-    measures = do_inference_measures(job, job_num)
+    measures = do_inference_measures(job)
     with open(file_path, 'w') as f:
         json.dump(measures, f, indent=4)
 
@@ -541,14 +541,10 @@ def gather(instances_path):
             if not filename.endswith('.json'):
                 print(f"!!!!!!!!!!!!!!! bad filename: {filename}!!!!!!!!!!!!!!!!!!!!!!!")
                 continue
-            # split the filename on '.'
-            table = filename.split('.')[0]
             with open(os.path.join(instances_path, filename), 'r') as f:
                 if i % 100 == 0:
                     print(f"Reading {i+1} of {len(all_files)} {filename}")
                 res = json.load(f)
-                for record in res:
-                    record['dataset'] = table
                 measures += res
         print(f"Total measures: {len(measures)}")
         # convert measures to a DataFrame
@@ -562,8 +558,6 @@ def gather(instances_path):
                         df[col] = df[col].astype(float)
                     except ValueError:
                         pass
-        df = df.drop(columns=['known_cols'])
-        df = df.drop(columns=['secret_col_type'])
         # print the dtypes of df
         pp.pprint(df.dtypes)
         # save the dataframe to a parquet file
