@@ -501,10 +501,6 @@ def measure(job_num):
     file_name = f"{job['dir_name']}.{job_num}.json"
     file_path = os.path.join(instances_path, file_name)
 
-    if os.path.exists(file_path):
-        if job['num_known'] == -1:
-            print(f"File already exists: {file_path}")
-            return
     measures = do_inference_measures(job, job_num)
     with open(file_path, 'w') as f:
         json.dump(measures, f, indent=4)
