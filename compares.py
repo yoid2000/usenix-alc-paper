@@ -37,9 +37,7 @@ orig_path = os.path.join(base_path, 'original_data_parquet')
 syn_path = os.path.join(base_path, 'synDatasets')
 os.makedirs(syn_path, exist_ok=True)
 
-attack_path = os.path.join(base_path, 'compare_attacks')
-os.makedirs(attack_path, exist_ok=True)
-plots_path = os.path.join(attack_path, 'plots')
+plots_path = os.path.join(base_path, 'plots')
 os.makedirs(plots_path, exist_ok=True)
 # This is the total number of attacks that will be run
 num_attacks = 500000
@@ -265,7 +263,7 @@ def make_config():
 
     exe_path = os.path.join(code_path, 'compares.py')
     venv_path = os.path.join(base_path, 'sdx_venv', 'bin', 'activate')
-    slurm_dir = os.path.join(attack_path, 'slurm_measure_out')
+    slurm_dir = os.path.join(base_path, 'slurm_measure_out')
     os.makedirs(slurm_dir, exist_ok=True)
     slurm_out = os.path.join(slurm_dir, 'out.%a.out')
     num_jobs = len(measure_jobs) - 1
@@ -532,10 +530,10 @@ def measure(job_num):
 def gather(instances_path):
     measures = []
     # check to see if measures.parquet exists
-    if os.path.exists(os.path.join(attack_path, 'measures.parquet')):
+    if os.path.exists(os.path.join(base_path, 'measures.parquet')):
         # read it as a DataFrame
         print("Reading measures.parquet")
-        df = pd.read_parquet(os.path.join(attack_path, 'measures.parquet'))
+        df = pd.read_parquet(os.path.join(base_path, 'measures.parquet'))
     else:
         all_files = list(os.listdir(instances_path))
         # loop through the index and filename of all_files
@@ -567,9 +565,9 @@ def gather(instances_path):
         # print the dtypes of df
         pp.pprint(df.dtypes)
         # save the dataframe to a parquet file
-        df.to_parquet(os.path.join(attack_path, 'measures.parquet'))
+        df.to_parquet(os.path.join(base_path, 'measures.parquet'))
         # save the dataframe to a csv file
-        df.to_csv(os.path.join(attack_path, 'measures.csv'))
+        df.to_csv(os.path.join(base_path, 'measures.csv'))
     return df
 
 def update_max_als(max_als, max_info, label, stats):
@@ -597,7 +595,7 @@ def add_to_dump(df, label, slice_name):
     ans_col = f"{label}_answer"
     cols += [val_col, ans_col]
     df_filtered_1 = df[df[ans_col] == 1]
-    path = os.path.join(attack_path, 'dumps')
+    path = os.path.join(base_path, 'dumps')
     os.makedirs(path, exist_ok=True)
     file_path = os.path.join(path, f"{slice_name}.{label}.csv")
     df_filtered_1[cols].to_csv(file_path)
@@ -960,7 +958,7 @@ def plot_prec_cov(df):
     plt.savefig(os.path.join(plots_path, f'pi_cov.png'))
 
 def do_plots():
-    stats_path = os.path.join(attack_path, 'stats.json')
+    stats_path = os.path.join(base_path, 'stats.json')
     if os.path.exists(stats_path):
         print(f"read stats from {stats_path}")
         with open(stats_path, 'r') as f:
@@ -1009,7 +1007,7 @@ def do_plots():
 
 
     pp.pprint(stats_summary)
-    stats_summ_path = os.path.join(attack_path, 'stats_summary.json')
+    stats_summ_path = os.path.join(base_path, 'stats_summary.json')
     # save stats_summary to a json file
     with open(stats_summ_path, 'w') as f:
         json.dump(stats_summary, f, indent=4)
