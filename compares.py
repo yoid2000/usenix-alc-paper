@@ -310,8 +310,8 @@ def align_column_types(df, df2, df2_name):
     differing_columns = df_types[df_types != df2_types]
     
     if not differing_columns.empty:
-        print(f"DataFrame {df2_name} has differing column types:")
-        print(differing_columns)
+        #print(f"DataFrame {df2_name} has differing column types:")
+        #print(differing_columns)
         
         # Force the differing columns to match the types of df
         for col in differing_columns.index:
@@ -521,7 +521,10 @@ def measure(job_num):
     # make a string that contains the column names in job['columns'] separated by '_'
     file_name = f"{job['dir_name']}.{job_num}.json"
     file_path = os.path.join(instances_path, file_name)
-
+    # check if file_path already exists
+    if os.path.exists(file_path):
+        print(f"File already exists at {file_path}. Quitting...")
+        return
     measures = do_inference_measures(job, job_num)
     with open(file_path, 'w') as f:
         json.dump(measures, f, indent=4)
@@ -597,9 +600,6 @@ def add_to_dump(df, label, slice_name):
     path = os.path.join(attack_path, 'dumps')
     os.makedirs(path, exist_ok=True)
     file_path = os.path.join(path, f"{slice_name}.{label}.csv")
-    # check if file_path already exists
-    if os.path.exists(file_path):
-        return
     df_filtered_1[cols].to_csv(file_path)
 
 def get_basic_stats(stats, df, df_all, info, cov_basis, slice_type, dataset, slice_name = None):
