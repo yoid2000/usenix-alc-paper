@@ -562,6 +562,7 @@ def gather(instances_path):
                         df[col] = df[col].astype(float)
                     except ValueError:
                         pass
+        df = df.drop(columns=['known_cols'])
         # print the dtypes of df
         pp.pprint(df.dtypes)
         # save the dataframe to a parquet file
