@@ -366,7 +366,7 @@ def do_inference_attacks(job, job_num):
     target_type = 'categorical'
     # Because I'm modeling the control and syn dataframes, and because the models
     # don't play well with string or datetime types, I'm just going to convert everthing
-    zzzz
+    #zzzz
     df_original = convert_datetime_to_timestamp(df_original)
     df_control = convert_datetime_to_timestamp(df_control)
     df_syn = convert_datetime_to_timestamp(df_syn)
