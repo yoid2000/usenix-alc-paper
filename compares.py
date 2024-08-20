@@ -362,8 +362,10 @@ def do_inference_measures(job, job_num):
     print("build stadler attack model")
     model_full_syn = build_and_train_model(df_full_syn[attack_cols], secret_col, secret_col_type)
 
-    num_exact_matches = df_test[df_test.isin(df_part_raw)].dropna().shape[0]
+    exact_matches = df_test[df_test.isin(df_part_raw)].dropna()
+    num_exact_matches = exact_matches.shape[0]
     print(f'There are {num_exact_matches} exact matches between df_test and df_part_raw')
+    print(exact_matches.head(5))
 
     num_alc_base_correct = 0
     num_stadler_attack_correct = 0
