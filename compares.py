@@ -563,6 +563,7 @@ def gather(instances_path):
                     except ValueError:
                         pass
         df = df.drop(columns=['known_cols'])
+        df = df.drop(columns=['secret_col_type'])
         # print the dtypes of df
         pp.pprint(df.dtypes)
         # save the dataframe to a parquet file
