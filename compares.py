@@ -231,21 +231,6 @@ def build_and_train_model(df, target_col, target_type):
     model.fit(X, y)
     return model
 
-def attack_stats():
-    with open(os.path.join(attack_path, 'attack_jobs.json'), 'r') as f:
-        jobs = json.load(f)
-    secrets = {3:{}, 6:{}, -1:{}}
-    for job in jobs:
-        nk = job['num_known']
-        if job['secret'] not in secrets[nk]:
-            secrets[nk][job['secret']] = job['num_runs']
-        else:
-            secrets[nk][job['secret']] += job['num_runs']
-    
-    for nk in [-1,3,6]:
-        print(f"Number of secrets for {nk} known columns: {len(secrets[nk])}")
-        print(f"Average count per secret: {sum(secrets[nk].values()) / len(secrets)}")
-
 def make_config():
     ''' I want to generate num_attacks attacks. Each attack will be on a given secret
     column in a given table with given known columns.
@@ -516,16 +501,15 @@ def measure(job_num):
         json.dump(measures, f, indent=4)
 
 def gather(instances_path):
-    attacks = []
-    # check to see if attacks.parquet exists
-    if os.path.exists(os.path.join(attack_path, 'attacks.parquet')):
+    measures = []
+    # check to see if measures.parquet exists
+    if os.path.exists(os.path.join(attack_path, 'measures.parquet')):
         # read it as a DataFrame
-        print("Reading attacks.parquet")
-        df = pd.read_parquet(os.path.join(attack_path, 'attacks.parquet'))
+        print("Reading measures.parquet")
+        df = pd.read_parquet(os.path.join(attack_path, 'measures.parquet'))
     else:
         all_files = list(os.listdir(instances_path))
         # loop through the index and filename of all_files
-        num_files_with_num_known = {3:0, 6:0, -1:0}
         for i, filename in enumerate(all_files):
             if not filename.endswith('.json'):
                 print(f"!!!!!!!!!!!!!!! bad filename: {filename}!!!!!!!!!!!!!!!!!!!!!!!")
@@ -536,27 +520,12 @@ def gather(instances_path):
                 if i % 100 == 0:
                     print(f"Reading {i+1} of {len(all_files)} {filename}")
                 res = json.load(f)
-                if 'num_known_cols' not in res[0]:
-                    print("old format")
-                    pp.pprint(res[0])
-                    print(filename)
-                    continue
                 for record in res:
                     record['dataset'] = table
-                attacks += res
-                if 'num_known_cols' not in res[0]:
-                    pp.pprint(res[0])
-                    print(filename)
-                if res[0]['num_known_cols'] == 3:
-                    num_files_with_num_known[3] += len(res)
-                elif res[0]['num_known_cols'] == 6:
-                    num_files_with_num_known[6] += len(res)
-                else:
-                    num_files_with_num_known[-1] += len(res)
-        print(f"Total attacks: {len(attacks)}")
-        pp.pprint(num_files_with_num_known)
-        # convert attacks to a DataFrame
-        df = pd.DataFrame(attacks)
+                measures += res
+        print(f"Total measures: {len(measures)}")
+        # convert measures to a DataFrame
+        df = pd.DataFrame(measures)
         for col in df.columns:
             if df[col].dtype == object:
                 try:
@@ -569,9 +538,9 @@ def gather(instances_path):
         # print the dtypes of df
         pp.pprint(df.dtypes)
         # save the dataframe to a parquet file
-        df.to_parquet(os.path.join(attack_path, 'attacks.parquet'))
+        df.to_parquet(os.path.join(attack_path, 'measures.parquet'))
         # save the dataframe to a csv file
-        df.to_csv(os.path.join(attack_path, 'attacks.csv'))
+        df.to_csv(os.path.join(attack_path, 'measures.csv'))
     return df
 
 def update_max_als(max_als, max_info, label, stats):
@@ -845,7 +814,7 @@ def run_stats_for_subsets(stats, df, df_all):
     get_by_metric_from_by_slice(stats)
 
 def do_stats_dict(stats_path):
-    df = gather(instances_path=os.path.join(attack_path, 'instances'))
+    df = gather(instances_path=os.path.join(base_path, 'instances'))
 
     print(f"df has shape {df.shape} and columns:")
     print(df.columns)
@@ -859,25 +828,9 @@ def do_stats_dict(stats_path):
                 except ValueError:
                     pass
     pp.pprint(df.dtypes)
+    print(df.head())
     stats = {}
-    # num_known_cols is the measured number of known columns (not the configuration)
-    # known_cols are the actual known column names. num_subsets are the number of
-    # subset synthetic tables examined
-    df_all_copy = df[(df['num_known_cols'] != 3) & (df['num_known_cols'] != 6)].copy()
-    for sub_key, num_known in num_known_config.items():
-        if num_known != -1:
-            df_copy = df[df['num_known_cols'] == num_known].copy()
-        else:
-            df_copy = df_all_copy
-        stats[sub_key] = {'by_slice': {}, 'by_metric': {},
-                          'info': {'num_model_base': 0,
-                                   'num_meter_base': 0,
-                                   'num_subset_model_base': 0,
-                                   'num_subset_meter_base': 0,}}
-        run_stats_for_subsets(stats[sub_key], df_copy, df_all_copy)
-        print(f"Writing stats {sub_key} to {stats_path}")
-        with open(stats_path, 'w') as f:
-            json.dump(stats, f, indent=4)
+    # Maybe do some basic stats here???
     return stats
 
 def make_df_from_stats(stats):
@@ -989,6 +942,7 @@ def do_plots():
     else:
         # make a json file with the collected stats
         stats = do_stats_dict(stats_path)
+    quit()
     df = make_df_from_stats(stats)
     df_atk = df[df['info_type'] == 'attack'].copy()
     stats_summary = {}
@@ -1056,7 +1010,6 @@ def main():
     measure_parser.add_argument("job_num", type=int, help="An integer to pass to make_syn()")
     subparsers.add_parser('make_syn', help="Run make_syn")
     subparsers.add_parser('config', help="Run make_config")
-    subparsers.add_parser('stats', help="Run stats")
     subparsers.add_parser('test', help="Run test")
     subparsers.add_parser('plots', help="Run plots")
     
@@ -1070,8 +1023,6 @@ def main():
         make_syn()
     elif args.command == 'config':
         make_config()
-    elif args.command == 'stats':
-        attack_stats()
     elif args.command == 'test':
         do_tests()
     elif args.command == 'plots':
