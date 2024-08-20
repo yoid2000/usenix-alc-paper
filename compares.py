@@ -327,16 +327,16 @@ def do_inference_attacks(job, job_num):
             return
     data_path = os.path.join(syn_path, job['dir_name'])
     # We'll run the attacks on the full_syn_path
-    full_syn_path = os.path.join(data_path, 'full_syn')
+    full_syn_path = os.path.join(data_path, 'full_syn', f'{job["dir_name"]}.parquet')
     df_full_syn = pd.read_parquet(full_syn_path)
     # For stadler and gioni, we do baseline on part_syn_path
-    part_syn_path = os.path.join(data_path, 'part_syn')
+    part_syn_path = os.path.join(data_path, 'part_syn', f'{job["dir_name"]}.parquet')
     df_part_syn = pd.read_parquet(part_syn_path)
     # The rows to attack
-    test_raw_path = os.path.join(data_path, 'test')
-    df_test = pd.read_parquet(test_raw_path)
+    test_path = os.path.join(data_path, 'test', f'{job["dir_name"]}.parquet')
+    df_test = pd.read_parquet(test_path)
     # We do ALC baseline on part_raw_path
-    part_raw_path = os.path.join(data_path, 'part_raw')
+    part_raw_path = os.path.join(data_path, 'part_raw', f'{job["dir_name"]}.parquet')
     df_part_raw = pd.read_parquet(part_raw_path)
 
     # set aux_cols to all columns except the secret column
