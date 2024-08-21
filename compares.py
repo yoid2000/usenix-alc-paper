@@ -9,7 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 import seaborn as sns
-import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.tree import DecisionTreeClassifier
@@ -920,96 +919,253 @@ def make_df_from_stats(stats):
     df = pd.DataFrame(dat)
     return df
 
-def plot_by_slice(df, slice, note, hue='metric'):
-    df = df[df['slice_type'] == slice].copy()
-    plt.figure(figsize=(8, 4))
-    sns.boxplot(data=df, y=hue, x='als', orient='h', hue=hue)
-    plt.xlim(-1, 1)
-    plt.axvline(x=0.0, color='black', linestyle='--')
-    plt.axvline(x=0.5, color='black', linestyle='--')
-    plt.ylabel(hue)
-    plt.xlabel(f'Anonymity Loss Score {note}')
-    plt.tight_layout()
-    plt.savefig(os.path.join(plots_path, f'pi_cov_by_slice_{slice}_{note}.png'))
+def make_prec(df, columns):
+    # Group the DataFrame by the 'grouper' column
+    grouped = df.groupby('grouper')
+    
+    # Initialize the new DataFrame with the specified columns
+    df_prec = grouped[columns].first().reset_index()
+    
+    # Add the 'group_count' column
+    df_prec['group_count'] = grouped.size().values
+    
+    # Add the precision columns
+    df_prec['stadler_atk_prec'] = grouped['stadler_attack_answer'].sum().values / df_prec['group_count']
+    df_prec['giomi_atk_prec'] = grouped['giomi_attack_answer'].sum().values / df_prec['group_count']
+    df_prec['stadler_base_prec'] = grouped['stadler_base_answer'].sum().values / df_prec['group_count']
+    df_prec['giomi_base_prec'] = grouped['giomi_base_answer'].sum().values / df_prec['group_count']
+    df_prec['alc_base_prec'] = grouped['alc_base_answer'].sum().values / df_prec['group_count']
+    
+    # Add the 'stadler_alc' column
+    df_prec['stadler_alc'] = (
+        0.5 * (df_prec['stadler_atk_prec'] - df_prec['stadler_base_prec']) +
+        0.5 * ((df_prec['stadler_atk_prec'] + 0.000001 - df_prec['stadler_base_prec']) / (1.000001 - df_prec['stadler_base_prec']))
+    )
+    
+    # Add the 'stadler_our_alc' column
+    df_prec['stadler_our_alc'] = (
+        0.5 * (df_prec['stadler_atk_prec'] - df_prec['alc_base_prec']) +
+        0.5 * ((df_prec['stadler_atk_prec'] + 0.000001 - df_prec['alc_base_prec']) / (1.000001 - df_prec['alc_base_prec']))
+    )
+    
+    # Add the 'giomi_alc' column
+    df_prec['giomi_alc'] = (
+        0.5 * (df_prec['giomi_atk_prec'] - df_prec['giomi_base_prec']) +
+        0.5 * ((df_prec['giomi_atk_prec'] + 0.000001 - df_prec['giomi_base_prec']) / (1.000001 - df_prec['giomi_base_prec']))
+    )
 
-def plot_by_num_known_complete(df, note):
-    plt.figure(figsize=(7, 3.5))
-    sns.boxplot(data=df, y='num_known', x='als', orient='h', hue='num_known')
-    plt.xlim(-1, 1)
-    plt.axvline(x=0.0, color='black', linestyle='--')
-    plt.axvline(x=0.5, color='black', linestyle='--')
-    plt.ylabel(f'Num attributes known by attacker {note}')
-    plt.xlabel('Anonymity Loss Score (ALS)')
-    plt.tight_layout()
-    plt.savefig(os.path.join(plots_path, f'als_by_num_known_{note}.png'))
+    # Add the 'giomi_our_alc' column
+    df_prec['giomi_our_alc'] = (
+        0.5 * (df_prec['giomi_atk_prec'] - df_prec['alc_base_prec']) +
+        0.5 * ((df_prec['giomi_atk_prec'] + 0.000001 - df_prec['alc_base_prec']) / (1.000001 - df_prec['alc_base_prec']))
+    )
+    
+    # Add the improvement columns
+    df_prec['alc_base_stadler_improve'] = df_prec['alc_base_prec'] - df_prec['stadler_base_prec']
+    df_prec['alc_base_giomi_improve'] = df_prec['alc_base_prec'] - df_prec['giomi_base_prec']
+    return df_prec
 
-def plot_prec_cov(df):
-    plt.figure(figsize=(6, 4))
+def grouper(df, columns):
+    # Group the DataFrame by the specified columns
+    grouped = df.groupby(columns)
+    # Create a new column 'grouper' with distinct integers for each group
+    df['grouper'] = grouped.ngroup()
+    return make_prec(df, columns)
 
-    plt.scatter(df['coverage'], df['precision'], marker='o', s=4)
-    plt.xscale('log')
-    plt.xlabel('Coverage')
-    plt.ylabel('Precision')
+
+def plot_basic(df, name):
+    # Define the columns to be plotted
+    columns_to_plot = [
+        'stadler_atk_prec',
+        'stadler_alc',
+        'stadler_our_alc',
+        'giomi_atk_prec',
+        'giomi_alc',
+        'giomi_our_alc',
+    ]
+
+    # Create a new DataFrame for plotting
+    plot_df = pd.melt(df[columns_to_plot], var_name='Metric', value_name='Value')
+    
+    # Create a mapping for the yticklabels
+    label_mapping = {
+        'stadler_atk_prec': 'Attack Precision\n(Stadler)',
+        'stadler_alc': 'Prior ALC\n(Stadler)',
+        'stadler_our_alc': 'Our ALC\n(Stadler)',
+        'giomi_atk_prec': 'Attack Precision\n(Giomi)',
+        'giomi_alc': 'Prior ALC\n(Giomi)',
+        'giomi_our_alc': 'Our ALC\n(Giomi)'
+    }
+    
+    # Map the yticklabels
+    plot_df['Metric'] = plot_df['Metric'].map(label_mapping)
+    
+    # Create the boxplot
+    plt.figure(figsize=(6, 3.5))
+    ax = sns.boxplot(x='Value', y='Metric', data=plot_df, palette=['#FF9999', '#FF9999', '#FF9999', '#66B2FF', '#66B2FF', '#66B2FF'])
+
+    plt.xlim(-1.05, 1.05)
+    
+    # Add a dashed vertical line at x=0
+    plt.axvline(x=0, color='black', linestyle='--')
+
+    ax.set_ylabel('')
+    ax.set_xlabel('')
+    
+    # Add a legend for the two colors
+    from matplotlib.patches import Patch
+    legend_handles = [Patch(facecolor='#FF9999', edgecolor='black', label='Stadler'),
+                      Patch(facecolor='#66B2FF', edgecolor='black', label='Giomi')]
+    plt.legend(handles=legend_handles, loc='upper left')
+    
+    # Adjust layout
     plt.tight_layout()
-    plt.savefig(os.path.join(plots_path, f'pi_cov.png'))
+    
+    # Save the plot as PNG and PDF
+    plt.savefig(os.path.join(base_path, 'plots', f'basic_{name}.png'))
+    plt.savefig(os.path.join(base_path, 'plots', f'basic_{name}.pdf'))
+
+def make_custom_bins(df, column, bins):
+    # Create bins based on the specified bin ranges
+    df['bin_ranges'] = pd.cut(df[column], bins=bins, include_lowest=True)
+    
+    # Create a list of bin ranges as strings
+    bin_ranges = [f'({bins[i]:.2f}, {bins[i+1]:.2f}]' for i in range(len(bins) - 1)]
+    
+    # Create a dictionary to map bin codes to bin ranges
+    bin_ranges_dict = {i: bin_ranges[i] for i in range(len(bin_ranges))}
+    
+    # Map the bin ranges to the bin labels
+    df['bin_ranges'] = df['bin_ranges'].cat.codes.map(bin_ranges_dict)
+    
+    # Add the 'grouper' column with the integer number of the group
+    df['grouper'] = df['bin_ranges'].astype('category').cat.codes
+    
+    return df
+
+def make_bins(df, column, num_bins=10):
+    # Create bins of equal count
+    df['bin_ranges'], bin_edges = pd.qcut(df[column], q=num_bins, retbins=True, duplicates='drop')
+    bin_ranges = [f'({bin_edges[i]:.2f}, {bin_edges[i+1]:.2f}]' for i in range(len(bin_edges) - 1)]
+    bin_ranges_dict = {i: bin_ranges[i] for i in range(len(bin_ranges))}
+    df['bin_ranges'] = df['bin_ranges'].cat.codes.map(bin_ranges_dict)
+    df['grouper'] = df['bin_ranges'].astype('category').cat.codes
+    return df
+
+def plot_alc_improve_by_secret_percent(df, tag):
+    # Define the columns to be plotted
+    columns_to_plot = ['alc_base_stadler_improve', 'alc_base_giomi_improve']
+    
+    # Get the unique bin ranges in the order they appear in df
+    bin_ranges = df['bin_ranges'].unique()
+    
+    # Initialize the plot
+    fig, ax = plt.subplots(figsize=(6, 3.5))
+    
+    # Define the bar width
+    bar_width = 0.4
+    
+    # Define the positions of the bars
+    y_pos = np.arange(len(bin_ranges))
+    
+    # Create a new DataFrame for plotting
+    plot_df = pd.DataFrame({
+        'bin_ranges': np.tile(bin_ranges, 2),
+        'Improvement': np.concatenate([
+            df.groupby('bin_ranges')['alc_base_stadler_improve'].mean().loc[bin_ranges].values,
+            df.groupby('bin_ranges')['alc_base_giomi_improve'].mean().loc[bin_ranges].values
+        ]),
+        'Baseline': ['Stadler'] * len(bin_ranges) + ['Giomi'] * len(bin_ranges)
+    })
+    
+    # Plot the bars using Seaborn
+    sns.barplot(x='Improvement', y='bin_ranges', hue='Baseline', data=plot_df, palette=['#FF9999', '#66B2FF'], ax=ax)
+    
+    # Set the y-axis labels
+    y_labels = [f"{bin_range}\n({group_count})" for bin_range, group_count in zip(bin_ranges, df['group_count'])]
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(y_labels)
+    
+    # Set the labels and title
+    ax.set_xlabel('Improvement of our baseline over prior baselines')
+    ax.set_ylabel('Fraction of rows with secret value\n(sample count)')
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    
+    # Add a legend
+    ax.legend()
+    
+    # Save the plot as PNG and PDF
+    plt.tight_layout()
+    plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.png'))
+    plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.pdf'))
+
+def plot_alc_improve_by_secret_percent_old(df, tag):
+    # Define the columns to be plotted
+    columns_to_plot = ['alc_base_stadler_improve', 'alc_base_giomi_improve']
+    
+    # Get the unique bin ranges in the order they appear in df
+    bin_ranges = df['bin_ranges'].unique()
+    
+    # Initialize the plot
+    fig, ax = plt.subplots(figsize=(6, 4))
+    
+    # Define the bar width
+    bar_width = 0.4
+    
+    # Define the positions of the bars
+    y_pos = np.arange(len(bin_ranges))
+    
+    # Plot the bars for 'alc_base_stadler_improve'
+    ax.barh(y_pos - bar_width/2, df.groupby('bin_ranges')['alc_base_stadler_improve'].mean().loc[bin_ranges], 
+            height=bar_width, label='Stadler', color='#FF9999')
+    
+    # Plot the bars for 'alc_base_giomi_improve'
+    ax.barh(y_pos + bar_width/2, df.groupby('bin_ranges')['alc_base_giomi_improve'].mean().loc[bin_ranges], 
+            height=bar_width, label='Giomi', color='#66B2FF')
+    
+    y_labels = [f"{bin_range}\n({group_count})" for bin_range, group_count in zip(bin_ranges, df['group_count'])]
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(y_labels)
+    
+    # Set the labels and title
+    ax.set_xlabel('Improvement of our baseline over prior baselines')
+    ax.set_ylabel('Fraction of rows with secret value\n(sample count)')
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    
+    # Add a legend
+    ax.legend()
+    
+    # Save the plot as PNG and PDF
+    plt.tight_layout()
+    plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.png'))
+    plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.pdf'))
 
 def do_plots():
-    stats_path = os.path.join(base_path, 'stats.json')
-    if os.path.exists(stats_path):
-        print(f"read stats from {stats_path}")
-        with open(stats_path, 'r') as f:
-            stats = json.load(f)
-    else:
-        # make a json file with the collected stats
-        stats = do_stats_dict(stats_path)
-    quit()
-    df = make_df_from_stats(stats)
-    df_atk = df[df['info_type'] == 'attack'].copy()
-    stats_summary = {}
-    stats_summary['precision_by_num_known_all_slices'] = df_atk.groupby('num_known')['precision'].mean().to_dict()
-    stats_summary['als_by_num_known_all_slices'] = df_atk.groupby('num_known')['als'].median().to_dict()
-    stats_summary['count_by_num_known_all_slices'] = df_atk.groupby('num_known')['als'].count().to_dict()
-    stats_summary['precision_by_metric_all_slices'] = df_atk.groupby('metric')['precision'].mean().to_dict()
-    stats_summary['als_by_metric_all_slices'] = df_atk.groupby('metric')['als'].median().to_dict()
-    stats_summary['count_by_metric_all_slices'] = df_atk.groupby('metric')['als'].count().to_dict()
-    df_atk_slice_all = df_atk[df_atk['slice_type'] == 'all'].copy()
-    stats_summary['precision_by_num_known_slice_all_only'] = df_atk_slice_all.groupby('num_known')['precision'].mean().to_dict()
-    stats_summary['als_by_num_known_slice_all_only'] = df_atk_slice_all.groupby('num_known')['als'].median().to_dict()
-    stats_summary['count_by_num_known_slice_all_only'] = df_atk_slice_all.groupby('num_known')['als'].count().to_dict()
-    stats_summary['precision_by_metric_slice_all_only'] = df_atk_slice_all.groupby('metric')['precision'].mean().to_dict()
-    stats_summary['als_by_metric_slice_all_only'] = df_atk_slice_all.groupby('metric')['als'].median().to_dict()
-    stats_summary['count_by_metric_slice_all_only'] = df_atk_slice_all.groupby('metric')['als'].count().to_dict()
-
-    df_atk_filtered = df_atk[df_atk['base_precision'] <= 0.95].copy()
-    print(f"df_atk has shape {df_atk.shape}")
-    print(f"df_atk_filtered has shape {df_atk_filtered.shape}")
-
-    df_atk_not_filtered = df_atk[df_atk['base_precision'] > 0.95].copy()
-    print("Rows in df_atk but not in df_atk_filtered:")
-    print(df_atk_not_filtered.to_string())
-    for column in df_atk.columns:
-        if df_atk[column].nunique() <= 20:
-            print(f"Distinct values in {column}: {df_atk[column].unique()}")
-
-    plot_prec_cov(df_atk)
-    for df_loop, loop_note in [[df_atk, '']]:
-        plot_by_num_known_complete(df_loop, loop_note)
-        plot_by_slice(df_loop, 'all', f'{loop_note}', hue='metric')
-        plot_by_slice(df_loop, 'dataset', f'{loop_note}', hue='dataset')
-
-        df_atk_num_known_all = df_loop[df_loop['num_known'] == 'all'].copy()
-        plot_by_slice(df_atk_num_known_all, 'all', f'num_known_all, {loop_note}', hue='metric')
-        plot_by_slice(df_atk_num_known_all, 'dataset', f'num_known_all, {loop_note}', hue='dataset')
-
-
-    pp.pprint(stats_summary)
-    stats_summ_path = os.path.join(base_path, 'stats_summary.json')
-    # save stats_summary to a json file
-    with open(stats_summ_path, 'w') as f:
-        json.dump(stats_summary, f, indent=4)
-    # print the distinct values of slice_type
-    print(df['slice_type'].value_counts())
+    df = gather(instances_path=os.path.join(base_path, 'instances'))
     print(df.columns)
+
+    min_value = df['secret_percentage'].min()
+    max_value = df['secret_percentage'].max()
+    print(f"Min value: {min_value}")
+    print(f"Max value: {max_value}")
+
+    bins = [0,10,20,50,100]
+    df_temp = make_custom_bins(df, 'secret_percentage', bins)
+    df_temp = make_prec(df_temp, ['bin_ranges'])
+    print(df_temp.columns)
+    print(df_temp[['bin_ranges', 'group_count', 'grouper']].to_string())
+    plot_alc_improve_by_secret_percent(df_temp, 'custom')
+
+    df_secret_percent = make_bins(df, 'secret_percentage', num_bins=5)
+    df_secret_percent = make_prec(df_secret_percent, ['bin_ranges'])
+    plot_alc_improve_by_secret_percent(df_secret_percent, 'equal')
+
+    df_secret_col = grouper(df, ['dataset', 'secret_col'])
+    plot_basic(df_secret_col, 'by_secret_col')
+
+    df_temp = df[df['secret_percentage'] < 0.2].copy()
+    df_temp = grouper(df_temp, ['dataset', 'secret_col'])
+    plot_basic(df_temp, 'by_secret_col_low')
 
 def do_tests():
     if find_most_frequent_value([1, 2, 2, 3, 3, 3], 0.5) != 3:
