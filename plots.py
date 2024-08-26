@@ -90,7 +90,7 @@ def make_als_plots(cov_adjust_strength=3.0, pairs='v3'):
         Catk_Cbase_pairs = [(1, 1), (0.1, 0.1), (0.01, 0.01), (0.001, 0.001)]
         fig, axs = plt.subplots(2, 2, figsize=(7, 6))
     elif pairs == 'v3':
-        Catk_Cbase_pairs = [(1, 1), (0.1, 0.1), (0.01, 0.01), (0.001, 0.001), (0.075, 0.1), (0.05, 0.01)]
+        Catk_Cbase_pairs = [(1, 1), (0.1, 0.1), (0.01, 0.01), (0.001, 0.001), (0.05, 0.1), (0.025, 0.1)]
         fig, axs = plt.subplots(3, 2, figsize=(6, 8))
     Pbase_values = [0.01, 0.1, 0.4, 0.7, 0.9]
     Patk = np.arange(0, 1.01, 0.01)

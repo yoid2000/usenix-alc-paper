@@ -989,12 +989,12 @@ def plot_basic(df, name):
     
     # Create a mapping for the yticklabels
     label_mapping = {
-        'stadler_atk_prec': 'Attack Precision\n(Stadler)',
-        'stadler_alc': 'Prior ALC\n(Stadler)',
-        'stadler_our_alc': 'Our ALC\n(Stadler)',
-        'giomi_atk_prec': 'Attack Precision\n(Giomi)',
-        'giomi_alc': 'Prior ALC\n(Giomi)',
-        'giomi_our_alc': 'Our ALC\n(Giomi)'
+        'stadler_atk_prec': 'Attack \nPrecision',
+        'stadler_alc': 'Prior ALC ',
+        'stadler_our_alc': 'Our ALC ',
+        'giomi_atk_prec': 'Attack\nPrecision',
+        'giomi_alc': 'Prior ALC',
+        'giomi_our_alc': 'Our ALC'
     }
     
     # Map the yticklabels
@@ -1062,18 +1062,15 @@ def plot_alc_improve_by_secret_percent(df, tag):
     # Initialize the plot
     fig, ax = plt.subplots(figsize=(6, 3.5))
     
-    # Define the bar width
-    bar_width = 0.4
-    
     # Define the positions of the bars
     y_pos = np.arange(len(bin_ranges))
-    
+
     # Create a new DataFrame for plotting
     plot_df = pd.DataFrame({
         'bin_ranges': np.tile(bin_ranges, 2),
         'Improvement': np.concatenate([
-            df.groupby('bin_ranges')['alc_base_stadler_improve'].mean().loc[bin_ranges].values,
-            df.groupby('bin_ranges')['alc_base_giomi_improve'].mean().loc[bin_ranges].values
+            df.groupby('bin_ranges')['alc_base_stadler_improve'].first().loc[bin_ranges].values,
+            df.groupby('bin_ranges')['alc_base_giomi_improve'].first().loc[bin_ranges].values
         ]),
         'Baseline': ['Stadler'] * len(bin_ranges) + ['Giomi'] * len(bin_ranges)
     })
@@ -1087,49 +1084,8 @@ def plot_alc_improve_by_secret_percent(df, tag):
     ax.set_yticklabels(y_labels)
     
     # Set the labels and title
-    ax.set_xlabel('Improvement of our baseline over prior baselines')
-    ax.set_ylabel('Fraction of rows with secret value\n(sample count)')
-    ax.tick_params(axis='both', which='major', labelsize=8)
-    
-    # Add a legend
-    ax.legend()
-    
-    # Save the plot as PNG and PDF
-    plt.tight_layout()
-    plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.png'))
-    plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.pdf'))
-
-def plot_alc_improve_by_secret_percent_old(df, tag):
-    # Define the columns to be plotted
-    columns_to_plot = ['alc_base_stadler_improve', 'alc_base_giomi_improve']
-    
-    # Get the unique bin ranges in the order they appear in df
-    bin_ranges = df['bin_ranges'].unique()
-    
-    # Initialize the plot
-    fig, ax = plt.subplots(figsize=(6, 4))
-    
-    # Define the bar width
-    bar_width = 0.4
-    
-    # Define the positions of the bars
-    y_pos = np.arange(len(bin_ranges))
-    
-    # Plot the bars for 'alc_base_stadler_improve'
-    ax.barh(y_pos - bar_width/2, df.groupby('bin_ranges')['alc_base_stadler_improve'].mean().loc[bin_ranges], 
-            height=bar_width, label='Stadler', color='#FF9999')
-    
-    # Plot the bars for 'alc_base_giomi_improve'
-    ax.barh(y_pos + bar_width/2, df.groupby('bin_ranges')['alc_base_giomi_improve'].mean().loc[bin_ranges], 
-            height=bar_width, label='Giomi', color='#66B2FF')
-    
-    y_labels = [f"{bin_range}\n({group_count})" for bin_range, group_count in zip(bin_ranges, df['group_count'])]
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(y_labels)
-    
-    # Set the labels and title
-    ax.set_xlabel('Improvement of our baseline over prior baselines')
-    ax.set_ylabel('Fraction of rows with secret value\n(sample count)')
+    ax.set_xlabel('Our PCC_base - Prior PCC_base (coverage=1)')
+    ax.set_ylabel('Fraction of rows with unknown value\n(sample count)')
     ax.tick_params(axis='both', which='major', labelsize=8)
     
     # Add a legend
@@ -1162,6 +1118,16 @@ def do_plots():
 
     df_secret_col = grouper(df, ['dataset', 'secret_col'])
     plot_basic(df_secret_col, 'by_secret_col')
+
+    fraction = len(df_secret_col[df_secret_col['stadler_our_alc'] > 0.0]) / len(df_secret_col)
+    print(f"Fraction of rows where stadler_our_alc > 0.0: {fraction}")
+    fraction = len(df_secret_col[df_secret_col['giomi_our_alc'] > 0.0]) / len(df_secret_col)
+    print(f"Fraction of rows where giomi_our_alc > 0.0: {fraction}")
+
+    max_stadler_our_alc = df_secret_col['stadler_our_alc'].max()
+    max_giomi_our_alc = df_secret_col['giomi_our_alc'].max()
+    print(f"Maximum value of stadler_our_alc: {max_stadler_our_alc}")
+    print(f"Maximum value of giomi_our_alc: {max_giomi_our_alc}")
 
     df_temp = df[df['secret_percentage'] < 0.2].copy()
     df_temp = grouper(df_temp, ['dataset', 'secret_col'])
