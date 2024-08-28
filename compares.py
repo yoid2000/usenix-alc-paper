@@ -344,6 +344,20 @@ def do_inference_measures(job):
     secret_col_type = 'categorical'
     # Because I'm modeling the control and syn dataframes, and because the models
     # don't play well with string or datetime types, I'm just going to convert everthing
+    print("Before conversion")
+    print("df_full_syn value_counts")
+    num_secret_rows = df_full_syn[secret_col].value_counts()
+    print(num_secret_rows)
+    print("df_part_syn value_counts")
+    num_secret_rows = df_part_syn[secret_col].value_counts()
+    print(num_secret_rows)
+    print("df_part_raw value_counts")
+    num_secret_rows = df_part_raw[secret_col].value_counts()
+    print(num_secret_rows)
+    print("df_test value_counts")
+    num_secret_rows = df_test[secret_col].value_counts()
+    print(num_secret_rows)
+
     df_full_syn = convert_datetime_to_timestamp(df_full_syn)
     df_part_syn = convert_datetime_to_timestamp(df_part_syn)
     df_part_raw = convert_datetime_to_timestamp(df_part_raw)
@@ -358,6 +372,20 @@ def do_inference_measures(job):
     df_part_syn = align_column_types(df_part_raw, df_part_syn, 'df_part_syn')
     df_full_syn = align_column_types(df_part_raw, df_full_syn, 'df_full_syn')
     df_test = align_column_types(df_part_raw, df_test, 'df_test')
+
+    print("After conversion")
+    print("df_full_syn value_counts")
+    num_secret_rows = df_full_syn[secret_col].value_counts()
+    print(num_secret_rows)
+    print("df_part_syn value_counts")
+    num_secret_rows = df_part_syn[secret_col].value_counts()
+    print(num_secret_rows)
+    print("df_part_raw value_counts")
+    num_secret_rows = df_part_raw[secret_col].value_counts()
+    print(num_secret_rows)
+    print("df_test value_counts")
+    num_secret_rows = df_test[secret_col].value_counts()
+    print(num_secret_rows)
 
     attack_cols = aux_cols + [secret_col]
     print(f'attack_cols: {attack_cols}')
@@ -1096,8 +1124,27 @@ def plot_alc_improve_by_secret_percent(df, tag):
     plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.png'))
     plt.savefig(os.path.join(base_path, 'plots', f'alc_improve_by_secret_percent_{tag}.pdf'))
 
+def check_odd_cases(df, df_secret_col):
+    print("Shape of df_secret_col: ", df_secret_col.shape)
+    print("Giomi base better than our base:")
+    df_filtered = df_secret_col[df_secret_col['giomi_base_prec'] > df_secret_col['alc_base_prec']]
+    print(df_filtered[['secret_col', 'alc_base_prec', 'giomi_atk_prec', 'giomi_base_prec', 'giomi_our_alc', 'giomi_alc']].to_string())
+    
+    for index, row in df_filtered.iterrows():
+        secret_col = row['secret_col']
+        dataset = row['dataset']
+        print(f"Odd case for secret_col={secret_col} and dataset={dataset}")
+        df_odd = df[(df['secret_col'] == secret_col) & (df['dataset'] == dataset)].copy()
+        #print(df_odd[['secret_col', 'secret_percentage', 'modal_percentage', 'num_known_cols', 'model_base_answer', 'model_attack_answer', 'giomi_base_answer', 'giomi_attack_answer', 'alc_base_answer', 'stadler_base_answer', 'stadler_attack_answer']].to_string())
+        print(df_odd[['secret_col', 'secret_value', 'secret_percentage', 'alc_base_pred_value', 'giomi_base_pred_value', 'giomi_attack_pred_value']].to_string())
+
+    print("Stadler base better than our base:")
+    df_filtered = df_secret_col[df_secret_col['stadler_base_prec'] > df_secret_col['alc_base_prec']]
+    print(df_filtered[['secret_col', 'alc_base_prec', 'stadler_atk_prec', 'stadler_base_prec', 'stadler_our_alc', 'stadler_alc']].to_string())
+
 def do_plots():
     df = gather(instances_path=os.path.join(base_path, 'instances'))
+    print(f"df has shape {df.shape} and columns:")
     print(df.columns)
 
     min_value = df['secret_percentage'].min()
@@ -1117,6 +1164,7 @@ def do_plots():
     plot_alc_improve_by_secret_percent(df_secret_percent, 'equal')
 
     df_secret_col = grouper(df, ['dataset', 'secret_col'])
+    check_odd_cases(df, df_secret_col)
     plot_basic(df_secret_col, 'by_secret_col')
 
     fraction = len(df_secret_col[df_secret_col['stadler_our_alc'] > 0.0]) / len(df_secret_col)
