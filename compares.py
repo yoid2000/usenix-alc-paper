@@ -444,9 +444,9 @@ def do_inference_measures(job):
         # Now get the alc baseline prediction
         try:
             alc_base_pred_value = model_part_raw.predict(df_target.drop(secret_col, axis=1))
-            alc_base_pred_value = alc_base_pred_value[0]
             if le_part_raw is not None:
                 alc_base_pred_value = le_part_raw.inverse_transform(alc_base_pred_value)
+            alc_base_pred_value = alc_base_pred_value[0]
             # proba[0] is a list of probability values, indexed by the column values
             proba = model_part_raw.predict_proba(df_target.drop(secret_col, axis=1))
         except Exception as e:
@@ -466,9 +466,9 @@ def do_inference_measures(job):
         # Now run the stadler attack
         try:
             stadler_attack_pred_value = model_full_syn.predict(df_target.drop(secret_col, axis=1))
-            stadler_attack_pred_value = stadler_attack_pred_value[0]
             if le_full_syn is not None:
                 stadler_attack_pred_value = le_full_syn.inverse_transform(stadler_attack_pred_value)
+            stadler_attack_pred_value = stadler_attack_pred_value[0]
         except Exception as e:
             print(f"A model.predict() Error occurred: {e}")
             sys.exit(1)
@@ -485,9 +485,9 @@ def do_inference_measures(job):
         # Now run the stadler baseline
         try:
             stadler_base_pred_value = model_part_syn.predict(df_target.drop(secret_col, axis=1))
-            stadler_base_pred_value = stadler_base_pred_value[0]
             if le_part_syn is not None:
                 stadler_base_pred_value = le_part_syn.inverse_transform(stadler_base_pred_value)
+            stadler_base_pred_value = stadler_base_pred_value[0]
         except Exception as e:
             print(f"A model.predict() Error occurred: {e}")
             sys.exit(1)
