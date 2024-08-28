@@ -204,6 +204,8 @@ def build_and_train_model(df, target_col, target_type):
     if target_type == 'categorical':
         le = LabelEncoder()
         y = le.fit_transform(y)
+    else:
+        le = None
 
     # Build and train the model
     if target_type == 'categorical':
@@ -226,7 +228,7 @@ def build_and_train_model(df, target_col, target_type):
         raise ValueError("target_type must be 'categorical' or 'continuous'")
 
     model.fit(X, y)
-    return model
+    return model, le
 
 def make_config():
     ''' I want to generate num_attacks attacks. Each attack will be on a given secret
@@ -390,12 +392,12 @@ def do_inference_measures(job):
     attack_cols = aux_cols + [secret_col]
     print(f'attack_cols: {attack_cols}')
     print("build alc baseline model")
-    model_part_raw = build_and_train_model(df_part_raw[attack_cols], secret_col, secret_col_type)
+    model_part_raw, le_part_raw = build_and_train_model(df_part_raw[attack_cols], secret_col, secret_col_type)
     # model_attack is used to generate a groundhog day type attack
     print("build stadler baseline model")
-    model_part_syn = build_and_train_model(df_part_syn[attack_cols], secret_col, secret_col_type)
+    model_part_syn, le_part_syn = build_and_train_model(df_part_syn[attack_cols], secret_col, secret_col_type)
     print("build stadler attack model")
-    model_full_syn = build_and_train_model(df_full_syn[attack_cols], secret_col, secret_col_type)
+    model_full_syn, le_full_syn = build_and_train_model(df_full_syn[attack_cols], secret_col, secret_col_type)
 
     exact_matches = df_test[df_test.isin(df_part_raw)].dropna()
     num_exact_matches = exact_matches.shape[0]
@@ -442,9 +444,11 @@ def do_inference_measures(job):
         # Now get the alc baseline prediction
         try:
             alc_base_pred_value = model_part_raw.predict(df_target.drop(secret_col, axis=1))
+            alc_base_pred_value = alc_base_pred_value[0]
+            if le_part_raw is not None:
+                alc_base_pred_value = le_part_raw.inverse_transform(alc_base_pred_value)
             # proba[0] is a list of probability values, indexed by the column values
             proba = model_part_raw.predict_proba(df_target.drop(secret_col, axis=1))
-            alc_base_pred_value = alc_base_pred_value[0]
         except Exception as e:
             print(f"A model_part_raw.predict() Error occurred: {e}")
             sys.exit(1)
@@ -463,6 +467,8 @@ def do_inference_measures(job):
         try:
             stadler_attack_pred_value = model_full_syn.predict(df_target.drop(secret_col, axis=1))
             stadler_attack_pred_value = stadler_attack_pred_value[0]
+            if le_full_syn is not None:
+                stadler_attack_pred_value = le_full_syn.inverse_transform(stadler_attack_pred_value)
         except Exception as e:
             print(f"A model.predict() Error occurred: {e}")
             sys.exit(1)
@@ -480,6 +486,8 @@ def do_inference_measures(job):
         try:
             stadler_base_pred_value = model_part_syn.predict(df_target.drop(secret_col, axis=1))
             stadler_base_pred_value = stadler_base_pred_value[0]
+            if le_part_syn is not None:
+                stadler_base_pred_value = le_part_syn.inverse_transform(stadler_base_pred_value)
         except Exception as e:
             print(f"A model.predict() Error occurred: {e}")
             sys.exit(1)
