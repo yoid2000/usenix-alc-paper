@@ -443,9 +443,9 @@ def do_inference_measures(job):
         }
         # Now get the alc baseline prediction
         try:
-            alc_base_pred_value = model_part_raw.predict(df_target.drop(secret_col, axis=1))
+            alc_base_pred_value_before = model_part_raw.predict(df_target.drop(secret_col, axis=1))
             if le_part_raw is not None:
-                alc_base_pred_value = le_part_raw.inverse_transform(alc_base_pred_value)
+                alc_base_pred_value = le_part_raw.inverse_transform(alc_base_pred_value_before)
             alc_base_pred_value = alc_base_pred_value[0]
             # proba[0] is a list of probability values, indexed by the column values
             proba = model_part_raw.predict_proba(df_target.drop(secret_col, axis=1))
@@ -461,7 +461,7 @@ def do_inference_measures(job):
         num_alc_base_correct += alc_base_answer
         this_attack['alc_base_pred_value'] = str(alc_base_pred_value)
         this_attack['alc_base_answer'] = int(alc_base_answer)
-        this_attack['alc_base_probability'] = float(proba[0][int(alc_base_pred_value)])
+        this_attack['alc_base_probability'] = float(proba[0][int(alc_base_pred_value_before)])
 
         # Now run the stadler attack
         try:
