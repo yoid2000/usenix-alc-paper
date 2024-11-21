@@ -225,9 +225,66 @@ def do_work(job_num):
                 quit()
     print(f"Job {job_num} not found (this_job={this_job})")
 
+def read_json_files_to_dataframe(directory):
+    # Initialize an empty list to store the rows
+    rows = []
+
+    # Iterate over all files in the directory
+    for filename in os.listdir(directory):
+        if filename.endswith(".json"):
+            # Construct the full file path
+            file_path = os.path.join(directory, filename)
+            
+            # Read the JSON file
+            with open(file_path, 'r') as json_file:
+                data = json.load(json_file)
+                
+                # Extract the relevant parameters
+                row = {
+                    'prec': data.get('prec'),
+                    'dataset': data.get('dataset'),
+                    'column': data.get('column'),
+                    'replicates': data.get('replicates'),
+                    'num_predictions': len(data.get('results'))
+                }
+                
+                # Append the row to the list
+                rows.append(row)
+    
+    # Create a DataFrame from the list of rows
+    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates'])
+    
+    return df
+
+def do_plot():
+    df = read_json_files_to_dataframe('independence_results')
+    # Calculate the average and maximum values for the 'num_predictions' column
+    average_num_predictions = df['num_predictions'].mean()
+    max_num_predictions = df['num_predictions'].max()
+
+    # Print the results
+    print(f"Average num_predictions: {average_num_predictions}")
+    print(f"Max num_predictions: {max_num_predictions}")
+    prec0_dict = {}
+    for index, row in df[df['replicates'] == 0].iterrows():
+        key = (row['dataset'], row['column'])
+        prec0_dict[key] = row['prec']
+
+    # Compute the difference for each row
+    def compute_difference(row):
+        key = (row['dataset'], row['column'])
+        prec0 = prec0_dict.get(key, 0)  # Default to 0 if not found
+        return row['prec'] - prec0
+
+    df['difference'] = df.apply(compute_difference, axis=1)
+    pass
+
 def main():
     if len(sys.argv) > 1:
-        do_work(sys.argv[1])
+        if sys.argv[1].isdigit():
+            do_work(sys.argv[1])
+        elif sys.argv[1] == 'plot':
+            do_plot()
     else:
         print("No command line parameters were provided.")
 
