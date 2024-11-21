@@ -286,10 +286,10 @@ def do_plot():
 
     df['difference'] = df.apply(compute_difference, axis=1)
     # Group by 'replicates' and compute the average, max, and standard deviation of 'difference'
-    grouped = df.groupby('replicates')['difference'].agg(['mean', 'max', 'std']).reset_index()
+    grouped = df.groupby('replicates')['difference'].agg(['mean', 'max', 'std', 'median']).reset_index()
 
     # Rename the columns for clarity
-    grouped.columns = ['replicates', 'average_difference', 'max_difference', 'std_difference']
+    grouped.columns = ['replicates', 'average_diff', 'max_diff', 'std_diff', 'median_diff']
 
     print(grouped)
     pass
