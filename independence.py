@@ -236,20 +236,24 @@ def read_json_files_to_dataframe(directory):
             file_path = os.path.join(directory, filename)
             
             # Read the JSON file
-            with open(file_path, 'r') as json_file:
-                data = json.load(json_file)
+            try:
+                with open(file_path, 'r') as json_file:
+                    data = json.load(json_file)
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Error reading file {file_path}: {e}")
+                continue
                 
-                # Extract the relevant parameters
-                row = {
-                    'prec': data.get('prec'),
-                    'dataset': data.get('dataset'),
-                    'column': data.get('column'),
-                    'replicates': data.get('replicates'),
-                    'num_predictions': len(data.get('results'))
-                }
-                
-                # Append the row to the list
-                rows.append(row)
+            # Extract the relevant parameters
+            row = {
+                'prec': data.get('prec'),
+                'dataset': data.get('dataset'),
+                'column': data.get('column'),
+                'replicates': data.get('replicates'),
+                'num_predictions': len(data.get('results'))
+            }
+            
+            # Append the row to the list
+            rows.append(row)
     
     # Create a DataFrame from the list of rows
     df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates'])
