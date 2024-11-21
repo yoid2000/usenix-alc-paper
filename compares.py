@@ -965,7 +965,9 @@ def make_prec(df, columns):
     # Add the 'group_count' column
     df_prec['group_count'] = grouped.size().values
     
-    # Add the precision columns
+    # Add the precision columns. Note that each *_answer column contains 0 or 1 values depending
+    # on whether the prediction was correct or not. The sum() is the number of correct predictions, and
+    # the group_count is the total number of predictions.
     df_prec['stadler_atk_prec'] = grouped['stadler_attack_answer'].sum().values / df_prec['group_count']
     df_prec['giomi_atk_prec'] = grouped['giomi_attack_answer'].sum().values / df_prec['group_count']
     df_prec['stadler_base_prec'] = grouped['stadler_base_answer'].sum().values / df_prec['group_count']
@@ -1026,11 +1028,11 @@ def plot_basic(df, name):
     # Create a mapping for the yticklabels
     label_mapping = {
         'stadler_atk_prec': 'Attack \nPrecision',
-        'stadler_alc': 'Prior ALC ',
-        'stadler_our_alc': 'Our ALC ',
-        'giomi_atk_prec': 'Attack\nPrecision',
-        'giomi_alc': 'Prior ALC',
-        'giomi_our_alc': 'Our ALC'
+        'stadler_alc': 'Prior \nBaseline',
+        'stadler_our_alc': 'Our \nBaseline',
+        'giomi_atk_prec': ' Attack \nPrecision',
+        'giomi_alc': ' Prior \nBaseline',
+        'giomi_our_alc': ' Our \nBaseline'
     }
     
     # Map the yticklabels
@@ -1089,9 +1091,6 @@ def make_bins(df, column, num_bins=10):
     return df
 
 def plot_alc_improve_by_secret_percent(df, tag):
-    # Define the columns to be plotted
-    columns_to_plot = ['alc_base_stadler_improve', 'alc_base_giomi_improve']
-    
     # Get the unique bin ranges in the order they appear in df
     bin_ranges = df['bin_ranges'].unique()
     

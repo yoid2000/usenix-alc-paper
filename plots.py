@@ -1,5 +1,4 @@
 import numpy as np
-import random
 import os
 import matplotlib.pyplot as plt
 import alscore
@@ -18,6 +17,69 @@ def savefigs(plt, name):
         path_name = name + suffix
         out_path = os.path.join(plots_path, path_name)
         plt.savefig(out_path)
+
+def plot_prec_cov_for_diff_cmin(out_name):
+    ''' The purpose of this plot is to see how different values of
+        alpha effect the pcc curve
+    '''
+    als = alscore.ALScore()
+    pcc_val = 0.5
+    alpha = als.get_param('cov_adjust_strength')
+    cmins = [0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001]
+    ranges = [[0.0001, 0.00011], [0.00011, 0.001], [0.001, 0.01], [0.01, 0.1], [0.1, 1]]
+    arrays = [np.linspace(start, end, 1000) for start, end in ranges]
+    cov_base_values = np.concatenate(arrays)
+
+    plt.figure(figsize=((6, 3.5)))
+    for cmin in cmins:
+        als.set_param('cov_adjust_min_intercept', cmin)
+        prec_values = [als.prec_from_pcc_cov(pcc_val, cov_value) for cov_value in cov_base_values]
+        prec_cov_pairs = [(prec, cov) for prec, cov in zip(prec_values, cov_base_values)]
+        prec_cov_pairs = sorted(prec_cov_pairs, key=lambda x: x[0])
+        prec_cov_pairs = [(prec, cov) for prec, cov in prec_cov_pairs if prec <= 1.0]
+        prec_values, cov_values = zip(*prec_cov_pairs)
+        plt.scatter(cov_values, prec_values, label=f'Cmin = {cmin}', s=1)
+    plt.xscale('log')
+    plt.grid(True)
+    plt.ylim(0.4, 1.05)
+    plt.xlabel('Coverage', fontsize=12)
+    plt.ylabel('Precision', fontsize=12)
+    plt.text(0.05, 0.98, f'PCC = {pcc_val}, alpha = {alpha}', ha='left', va='top', fontsize=9, transform=plt.gca().transAxes)
+    plt.legend(scatterpoints=1, markerscale=7, handletextpad=0.5, labelspacing=0.5, fontsize='small', loc='upper right')
+    plt.tight_layout()
+    savefigs(plt, out_name)
+
+
+def plot_prec_cov_for_diff_alpha(out_name):
+    ''' The purpose of this plot is to see how different values of
+        alpha effect the pcc curve
+    '''
+    als = alscore.ALScore()
+    pcc_val = 0.5
+    alphas = [0.75, 1.0, 1.5, 2.0, 3.0, 4.0]
+    ranges = [[0.0001, 0.00011], [0.00011, 0.001], [0.001, 0.01], [0.01, 0.1], [0.1, 1]]
+    arrays = [np.linspace(start, end, 1000) for start, end in ranges]
+    cov_base_values = np.concatenate(arrays)
+
+    plt.figure(figsize=((6, 3.5)))
+    for alpha in alphas:
+        als.set_param('cov_adjust_strength', alpha)
+        prec_values = [als.prec_from_pcc_cov(pcc_val, cov_value) for cov_value in cov_base_values]
+        prec_cov_pairs = [(prec, cov) for prec, cov in zip(prec_values, cov_base_values)]
+        prec_cov_pairs = sorted(prec_cov_pairs, key=lambda x: x[0])
+        prec_cov_pairs = [(prec, cov) for prec, cov in prec_cov_pairs if prec <= 1.0]
+        prec_values, cov_values = zip(*prec_cov_pairs)
+        plt.scatter(cov_values, prec_values, label=f'alpha = {alpha}', s=1)
+    plt.xscale('log')
+    plt.grid(True)
+    plt.ylim(0.4, 1.05)
+    plt.xlabel('Coverage', fontsize=12)
+    plt.ylabel('Precision', fontsize=12)
+    plt.text(0.05, 0.98, f'PCC = {pcc_val}, Cmin = 0.0001', ha='left', va='top', fontsize=9, transform=plt.gca().transAxes)
+    plt.legend(scatterpoints=1, markerscale=7, handletextpad=0.5, labelspacing=0.5, fontsize='small', loc='upper right')
+    plt.tight_layout()
+    savefigs(plt, out_name)
+
 
 def plot_prec_cov_for_equal_pcc(out_name):
     ''' The purpose of this plot is to see how different values of prec
@@ -144,7 +206,9 @@ do_als_test(als, p_base=0.2, c_base=0.001, increase=0.8, c_attack=0.001)
 do_als_test(als, p_base=0.5, c_base=0.0001, increase=0.2, c_attack=0.0001)
 do_als_test(als, p_base=0.2, c_base=0.0001, increase=0.8, c_attack=0.0001)
 do_als_test(als, p_base=1.0, c_base=0.00001, increase=0, c_attack=0.00001)
+plot_prec_cov_for_diff_cmin('prec_cov_for_diff_cmin')
 plot_prec_cov_for_equal_pcc('prec_cov_for_equal_pcc')
+plot_prec_cov_for_diff_alpha('prec_cov_for_diff_alpha')
 make_als_plots(pairs='v3')
 for cov_adjust_strength in [1.0, 2.0, 3.0, 4.0]:
     make_als_plots(cov_adjust_strength=cov_adjust_strength, pairs='v1')

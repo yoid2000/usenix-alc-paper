@@ -106,3 +106,10 @@ class ALScore:
         P = prec
         PCC = pcc
         return 10 ** (np.log10(Cmin) * (1 - PCC / P) ** (1 / alpha))
+
+    def pccatk_from_pccbase_alc(self, pcc_base, alc):
+        ''' Given a PCC and anonymity loss coefficient, return the PCC of the attack.
+        '''
+        pcc_atk = ((2*alc) - (2*alc)*pcc_base + (2*pcc_base) - (pcc_base**2)) / (2 - pcc_base)
+
+        return pcc_atk
