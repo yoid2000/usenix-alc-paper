@@ -256,7 +256,7 @@ def read_json_files_to_dataframe(directory):
             rows.append(row)
     
     # Create a DataFrame from the list of rows
-    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates'])
+    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions'])
     
     return df
 
