@@ -266,6 +266,7 @@ def do_plot():
     # Calculate the average and maximum values for the 'num_predictions' column
     average_num_predictions = df['num_predictions'].mean()
     max_num_predictions = df['num_predictions'].max()
+    print(f"Number for completed jobs is {(df['num_predictions'] == 1000).sum()}")
 
     # Print the results
     print(f"Average num_predictions: {average_num_predictions}")
