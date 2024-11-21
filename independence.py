@@ -278,10 +278,20 @@ def do_plot():
     # Compute the difference for each row
     def compute_difference(row):
         key = (row['dataset'], row['column'])
-        prec0 = prec0_dict.get(key, 0)  # Default to 0 if not found
-        return row['prec'] - prec0
+        prec0 = prec0_dict.get(key, None)  # Default to None if not found
+        if prec0 is None:
+            return None
+        else:
+            return row['prec'] - prec0
 
     df['difference'] = df.apply(compute_difference, axis=1)
+    # Group by 'replicates' and compute the average, max, and standard deviation of 'difference'
+    grouped = df.groupby('replicates')['difference'].agg(['mean', 'max', 'std']).reset_index()
+
+    # Rename the columns for clarity
+    grouped.columns = ['replicates', 'average_difference', 'max_difference', 'std_difference']
+
+    print(grouped)
     pass
 
 def main():
