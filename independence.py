@@ -258,6 +258,7 @@ def read_json_files_to_dataframe(directory):
 
 def do_plot():
     df = read_json_files_to_dataframe('independence_results')
+    print(df.columns)
     # Calculate the average and maximum values for the 'num_predictions' column
     average_num_predictions = df['num_predictions'].mean()
     max_num_predictions = df['num_predictions'].max()
