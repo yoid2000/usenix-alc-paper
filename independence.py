@@ -214,7 +214,7 @@ def do_work(job_num):
                         quit()
                     prec = calculate_precision(df_repped, df_this_sample, col)
                     matches += prec
-                    results.append({'target_val': target_val, 'precision': prec})
+                    results.append({'target_val': str(target_val), 'precision': prec})
                     finals = {'prec': matches / num_predictions,
                             'dataset': dataset['file_name'],
                             'column': col,
