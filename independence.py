@@ -323,16 +323,14 @@ def do_plot():
             return row['prec'] - prec0
 
     df['difference'] = df.apply(compute_difference, axis=1)
-    df_filtered = df[df['num_predictions'] >= 300]
-    print(f"Filtering out rows with less than 300 predictions. Original length: {len(df)}, Filtered length: {len(df_filtered)}")
+    df_filtered = df[df['conf_95_error'] <= 0.05]
+    print(f"Filtering out rows with less than 0.05 confidence error. Original length: {len(df)}, Filtered length: {len(df_filtered)}")
     # Group by 'replicates' and compute the average, max, and standard deviation of 'difference'
     grouped = df_filtered.groupby('replicates')['difference'].agg(['mean', 'max', 'std', 'median']).reset_index()
 
     # Rename the columns for clarity
     grouped.columns = ['replicates', 'average_diff', 'max_diff', 'std_diff', 'median_diff']
-
     print(grouped)
-    pass
 
 def main():
     if len(sys.argv) > 1:
