@@ -233,8 +233,12 @@ def do_work(job_num):
                     matches += prec
                     results.append({'target_val': str(target_val), 'precision': prec})
                     precidence = matches / num_predictions
-                    conf_95 = compute_confidence_interval(results)    
-                    conf_95_error = conf_95 / precidence
+                    if num_predictions > 200:
+                        conf_95 = compute_confidence_interval(results)    
+                        conf_95_error = conf_95 / precidence
+                    else:
+                        conf_95 = 2.0
+                        conf_95_error = 2.0
                     finals = {'prec': matches / num_predictions,
                             'dataset': dataset['file_name'],
                             'column': col,
