@@ -248,6 +248,10 @@ def compute_confidence_interval(data_list, confidence_level=0.95, n_resamples=10
     return confidence_interval_width
 
 def read_json_files_to_dataframe(directory):
+    if os.path.exists('independence_results.parquet'):
+        print(f"Reading independence_results.parquet")
+        df = pd.read_parquet('independence_results.parquet')
+        return df
     # Initialize an empty list to store the rows
     rows = []
 
@@ -280,6 +284,7 @@ def read_json_files_to_dataframe(directory):
     
     # Create a DataFrame from the list of rows
     df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions', 'confidence_95'])
+    df.to_parquet('independence_results.parquet', index=False)
     
     return df
 
@@ -291,8 +296,9 @@ def do_plot():
     max_num_predictions = df['num_predictions'].max()
     print(f"Number for completed jobs is {(df['num_predictions'] == 1000).sum()}")
     average_conf = df['confidence_95'].mean()
+    median_conf = df['confidence_95'].median()
     max_conf = df['confidence_95'].max()
-    print(f"Average confidence_95: {average_conf}, Max confidence_95: {max_conf}")
+    print(f"Average conf_int: {average_conf}, Median conf_int {median_conf}, Max conf_int: {max_conf}")
 
     # Print the results
     print(f"Average num_predictions: {average_num_predictions}")
