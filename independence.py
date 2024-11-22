@@ -1,12 +1,14 @@
 import sys
 import os
 import pandas as pd
+import numpy as np
 import random
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
+from scipy.stats import bootstrap
 import json
 
 samples = 1000
@@ -260,6 +262,23 @@ def read_json_files_to_dataframe(directory):
     
     return df
 
+def add_confidence_interval(df):
+    # Extract the 'difference' column as a numpy array
+    data_column = df['difference'].to_numpy()
+
+    # Define the statistic to be estimated (e.g., median)
+    def median_statistic(data, axis):
+        return np.median(data, axis=axis)
+
+    # Calculate the bootstrapped confidence interval
+    confidence_level = 0.95
+    res = bootstrap((data_column,), median_statistic, confidence_level=confidence_level, n_resamples=10000, method='percentile')
+
+    confidence_interval_width = res.confidence_interval.high - res.confidence_interval.low
+    df['confidence_95'] = confidence_interval_width
+
+    return df
+
 def do_plot():
     df = read_json_files_to_dataframe('independence_results')
     print(df.columns)
@@ -286,6 +305,11 @@ def do_plot():
             return row['prec'] - prec0
 
     df['difference'] = df.apply(compute_difference, axis=1)
+    # Let's compute confidence intervals on the median
+    df = add_confidence_interval(df)
+    average_conf = df['confidence_95'].mean()
+    max_conf = df['confidence_95'].max()
+    print(f"Average confidence_95: {average_conf}, Max confidence_95: {max_conf}")
     df_filtered = df[df['num_predictions'] >= 300]
     print(f"Filtering out rows with less than 300 predictions. Original length: {len(df)}, Filtered length: {len(df_filtered)}")
     # Group by 'replicates' and compute the average, max, and standard deviation of 'difference'
