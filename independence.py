@@ -290,6 +290,7 @@ def read_json_files_to_dataframe(directory):
 
 def do_plot():
     df = read_json_files_to_dataframe('independence_results')
+    df['conf_95_error'] = df['confidence_95'] / df['prec']
     print(df.columns)
     # Calculate the average and maximum values for the 'num_predictions' column
     average_num_predictions = df['num_predictions'].mean()
@@ -299,6 +300,10 @@ def do_plot():
     median_conf = df['confidence_95'].median()
     max_conf = df['confidence_95'].max()
     print(f"Average conf_int: {average_conf}, Median conf_int {median_conf}, Max conf_int: {max_conf}")
+    average_conf_err = df['conf_95_error'].mean()
+    median_conf_err = df['conf_95_error'].median()
+    max_conf_err = df['conf_95_error'].max()
+    print(f"Average conf_int_err: {average_conf_err}, Median conf_int_err {median_conf_err}, Max conf_int_err: {max_conf_err}")
 
     # Print the results
     print(f"Average num_predictions: {average_num_predictions}")
