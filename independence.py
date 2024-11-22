@@ -3,6 +3,8 @@ import os
 import pandas as pd
 import numpy as np
 import random
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.compose import ColumnTransformer
@@ -12,9 +14,20 @@ from scipy.stats import bootstrap
 import json
 
 samples = 1000
+end_error = 0.05
 rare = 0.2
-reps = [0, 1, 5, 10, 50]
+reps = [0, 1, 2, 5, 10]
+classparams = 'default'
 
+plots_path = os.path.join('independence_results')
+if not os.path.exists(plots_path):
+    os.makedirs(plots_path)
+
+def savefigs(plt, name):
+    for suffix in ['.png', '.pdf']:
+        path_name = name + suffix
+        out_path = os.path.join(plots_path, path_name)
+        plt.savefig(out_path)
 
 def calculate_precision(df_repped_in, df_sampled_in, target_col):
     # Make copies of the input DataFrames
@@ -55,8 +68,10 @@ def calculate_precision(df_repped_in, df_sampled_in, target_col):
     X_sampled = preprocessor.transform(X_sampled)
 
     # Train a RandomForestClassifier on the repped data
-    #model = RandomForestClassifier(random_state=42)
-    model = RandomForestClassifier(max_features='sqrt', min_samples_split=10, min_samples_leaf=4, random_state=42)
+    if classparams == 'default':
+        model = RandomForestClassifier(random_state=42)
+    else:
+        model = RandomForestClassifier(max_features='sqrt', min_samples_split=10, min_samples_leaf=4, random_state=42)
     model.fit(X_repped, y_repped)
 
     # Predict the target column for the sampled data
@@ -181,7 +196,7 @@ def do_work(job_num):
     print(f"Running do_work with job_num {job_num}")
     data_list = read_parquet_files('original_data_parquet')
     os.makedirs('independence_results', exist_ok=True)
-    res_path = os.path.join('independence_results', f'results.{job_num}.json')
+    res_path = os.path.join('independence_results', f'results.{classparams}.{job_num}.json')
     if os.path.exists(res_path):
         print(f"Results file {res_path} already exists")
         quit()
@@ -217,13 +232,22 @@ def do_work(job_num):
                     prec = calculate_precision(df_repped, df_this_sample, col)
                     matches += prec
                     results.append({'target_val': str(target_val), 'precision': prec})
+                    precidence = matches / num_predictions
+                    conf_95 = compute_confidence_interval(results)    
+                    conf_95_error = conf_95 / precidence
                     finals = {'prec': matches / num_predictions,
                             'dataset': dataset['file_name'],
                             'column': col,
                             'replicates': rep,
+                            'confidence_95': conf_95,
+                            'conf_95_error': conf_95_error,
+                            'num_predictions': num_predictions,
                             'results': results}
                     with open(res_path, 'w') as json_file:
                         json.dump(finals, json_file, indent=4)
+                    if conf_95_error <= end_error:
+                        print(f"Job {job_num} completed by confidence")
+                        quit()
                 quit()
     print(f"Job {job_num} not found (this_job={this_job})")
 
@@ -248,9 +272,10 @@ def compute_confidence_interval(data_list, confidence_level=0.95, n_resamples=10
     return confidence_interval_width
 
 def read_json_files_to_dataframe(directory):
-    if os.path.exists('independence_results.parquet'):
-        print(f"Reading independence_results.parquet")
-        df = pd.read_parquet('independence_results.parquet')
+    res_path = os.path.join('independence_results', 'independence_results.parquet')
+    if os.path.exists(res_path):
+        print(f"Reading {res_path}")
+        df = pd.read_parquet(res_path)
         return df
     # Initialize an empty list to store the rows
     rows = []
@@ -284,9 +309,23 @@ def read_json_files_to_dataframe(directory):
     
     # Create a DataFrame from the list of rows
     df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions', 'confidence_95'])
-    df.to_parquet('independence_results.parquet', index=False)
+    df.to_parquet(res_path, index=False)
     
     return df
+
+def plot_boxplot(df):
+    # Filter out rows where 'replicates' is 0
+    df_filtered = df[df['replicates'] != 0]
+    
+    # Create the boxplot
+    plt.figure(figsize=(8, 5))
+    sns.boxplot(x='difference', y='replicates', data=df_filtered, orient='h', color='lightblue')
+    
+    # Set the labels
+    plt.xlabel('Absolute precision error', fontsize=14)
+    plt.ylabel('Number of replicates', fontsize=14)
+
+    return plt
 
 def do_plot():
     df = read_json_files_to_dataframe('independence_results')
@@ -331,6 +370,8 @@ def do_plot():
     # Rename the columns for clarity
     grouped.columns = ['replicates', 'average_diff', 'max_diff', 'std_diff', 'median_diff']
     print(grouped)
+    plt = plot_boxplot(df_filtered)
+    savefigs(plt, 'independence_boxplot')
 
 def main():
     if len(sys.argv) > 1:
