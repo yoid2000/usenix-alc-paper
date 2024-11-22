@@ -227,6 +227,26 @@ def do_work(job_num):
                 quit()
     print(f"Job {job_num} not found (this_job={this_job})")
 
+
+def compute_confidence_interval(data_list, confidence_level=0.95, n_resamples=10000):
+    # Extract precision values from the list of dictionaries
+    precision_values = [d['precision'] for d in data_list]
+
+    # Convert to a numpy array
+    precision_array = np.array(precision_values)
+
+    # Define the statistic to be estimated (e.g., mean)
+    def mean_statistic(data, axis):
+        return np.mean(data, axis=axis)
+
+    # Calculate the bootstrapped confidence interval
+    res = bootstrap((precision_array,), mean_statistic, confidence_level=confidence_level, n_resamples=n_resamples, method='percentile')
+
+    # Calculate the width of the confidence interval
+    confidence_interval_width = res.confidence_interval.high - res.confidence_interval.low
+
+    return confidence_interval_width
+
 def read_json_files_to_dataframe(directory):
     # Initialize an empty list to store the rows
     rows = []
@@ -244,39 +264,23 @@ def read_json_files_to_dataframe(directory):
             except (json.JSONDecodeError, IOError) as e:
                 print(f"Error reading file {file_path}: {e}")
                 continue
-                
+            conf_95 = compute_confidence_interval(data['results'])    
             # Extract the relevant parameters
             row = {
                 'prec': data.get('prec'),
                 'dataset': data.get('dataset'),
                 'column': data.get('column'),
                 'replicates': data.get('replicates'),
-                'num_predictions': len(data.get('results'))
+                'num_predictions': len(data.get('results')),
+                'confidence_95': conf_95,
             }
             
             # Append the row to the list
             rows.append(row)
     
     # Create a DataFrame from the list of rows
-    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions'])
+    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions', 'confidence_95'])
     
-    return df
-
-def add_confidence_interval(df):
-    # Extract the 'difference' column as a numpy array
-    data_column = df['difference'].to_numpy()
-
-    # Define the statistic to be estimated (e.g., median)
-    def median_statistic(data, axis):
-        return np.median(data, axis=axis)
-
-    # Calculate the bootstrapped confidence interval
-    confidence_level = 0.95
-    res = bootstrap((data_column,), median_statistic, confidence_level=confidence_level, n_resamples=10000, method='percentile')
-
-    confidence_interval_width = res.confidence_interval.high - res.confidence_interval.low
-    df['confidence_95'] = confidence_interval_width
-
     return df
 
 def do_plot():
@@ -286,6 +290,9 @@ def do_plot():
     average_num_predictions = df['num_predictions'].mean()
     max_num_predictions = df['num_predictions'].max()
     print(f"Number for completed jobs is {(df['num_predictions'] == 1000).sum()}")
+    average_conf = df['confidence_95'].mean()
+    max_conf = df['confidence_95'].max()
+    print(f"Average confidence_95: {average_conf}, Max confidence_95: {max_conf}")
 
     # Print the results
     print(f"Average num_predictions: {average_num_predictions}")
@@ -305,11 +312,6 @@ def do_plot():
             return row['prec'] - prec0
 
     df['difference'] = df.apply(compute_difference, axis=1)
-    # Let's compute confidence intervals on the median
-    df = add_confidence_interval(df)
-    average_conf = df['confidence_95'].mean()
-    max_conf = df['confidence_95'].max()
-    print(f"Average confidence_95: {average_conf}, Max confidence_95: {max_conf}")
     df_filtered = df[df['num_predictions'] >= 300]
     print(f"Filtering out rows with less than 300 predictions. Original length: {len(df)}, Filtered length: {len(df_filtered)}")
     # Group by 'replicates' and compute the average, max, and standard deviation of 'difference'
