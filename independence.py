@@ -78,6 +78,8 @@ def calculate_precision(df_repped_in, df_sampled_in, target_col, model_param):
         model = RandomForestClassifier(max_features='sqrt', min_samples_split=10, min_samples_leaf=4, random_state=42)
     elif model_param == 'overfit2':
         model = RandomForestClassifier(n_estimators=200, min_samples_split=10, min_samples_leaf=10, random_state=42)
+    elif model_param == 'overfit3':
+        model = RandomForestClassifier(n_estimators=300, min_samples_split=20, min_samples_leaf=20, random_state=42)
     model.fit(X_repped, y_repped)
 
     # Predict the target column for the sampled data
@@ -220,7 +222,7 @@ def do_work(job_num):
         df = dataset['dataframe']
         job_cols = select_random_cols(dataset['rare_cats'])
         for col in job_cols:
-            for model_param in ['default', 'overfit1', 'overfit2']:
+            for model_param in ['default', 'overfit1', 'overfit2', 'overfit3']:
                 for rep in reps:
                     if this_job < int(job_num):
                         this_job += 1
@@ -300,6 +302,31 @@ def read_json_files_to_dataframe(directory, force=False):
     
     return df
 
+def double_plot(dataframes, model_param1, model_param2):
+    df1 = dataframes[model_param1]
+    df2 = dataframes[model_param2]
+    df1 = df1[df1['replicates'] != 0]
+    df2 = df2[df2['replicates'] != 0]
+
+    # Create a figure with two subplots side by side
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3))
+
+    # First boxplot
+    sns.boxplot(x='difference', y='replicates', data=df1, orient='h', color='lightblue', ax=ax1)
+    ax1.set_xlabel('Absolute precision error', fontsize=14)
+    ax1.set_ylabel('Number of replicates', fontsize=14)
+    ax1.set_title('Default model parameters', fontsize=14)
+
+    # Second boxplot
+    sns.boxplot(x='difference', y='replicates', data=df2, orient='h', color='lightblue', ax=ax2)
+    ax2.set_xlabel('Absolute precision error', fontsize=14)
+    ax2.set_ylabel('', fontsize=14)
+    ax2.set_title('Model parameters with overfit avoidance', fontsize=14)
+
+    # Display the plots
+    plt.tight_layout()
+    return plt
+
 def plot_boxplot(df):
     # Filter out rows where 'replicates' is 0
     df_filtered = df[df['replicates'] != 0]
@@ -320,12 +347,19 @@ def do_gather():
 def do_plot():
     df = read_json_files_to_dataframe('independence_results', force=False)
     print(df.columns)
-    for model_param in df['model_params'].unique():
+    model_params = df['model_params'].unique()
+    dataframes = {}
+    for model_param in model_params:
         print(f"Model params: {model_param}")
         df_filtered = df[df['model_params'] == model_param]
-        one_plot(df_filtered, model_param)
+        df_new = one_plot(df_filtered, model_param)
+        dataframes[model_param] = df_new
+    plt = double_plot(dataframes, 'default', 'overfit2')
+    savefigs(plt, 'ind_default_overfit2')
+    # Let's make a composite of default and overfit2
 
-def one_plot(df, model_param):
+def one_plot(df_orig, model_param):
+    df = df_orig.copy()
     prec0_dict = {}
     for index, row in df[df['replicates'] == 0].iterrows():
         key = (row['dataset'], row['column'])
@@ -347,7 +381,8 @@ def one_plot(df, model_param):
         grouped.columns = ['replicates', 'average', 'max', 'std', 'median', 'count']
         print(grouped)
     plt = plot_boxplot(df)
-    savefigs(plt, f'independence_boxplot_{model_param}')
+    savefigs(plt, f'ind_{model_param}')
+    return df
 
 def main():
     if len(sys.argv) > 1:
