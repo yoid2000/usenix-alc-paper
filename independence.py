@@ -160,12 +160,14 @@ def read_parquet_files(directory):
                 'file_name': filename,
                 'cats': cats,
                 'rare_cats': rare_cats,
-                'dataframe': df
+                'dataframe': df,
+                'size': len(df) * len(df.columns),
             }
             
             # Append the dictionary to the list
             data_list.append(data_dict)
     
+    data_list = sorted(data_list, key=lambda x: x['size'])
     return data_list
 
 def select_random_cols(x, num_values=20):
@@ -214,11 +216,11 @@ def do_work(job_num):
     data_list = read_parquet_files('original_data_parquet')
     os.makedirs('independence_results', exist_ok=True)
     this_job = 0
-    for model_param in ['default', 'overfit1', 'overfit2']:
-        for dataset in data_list:
-            df = dataset['dataframe']
-            job_cols = select_random_cols(dataset['rare_cats'])
-            for col in job_cols:
+    for dataset in data_list:
+        df = dataset['dataframe']
+        job_cols = select_random_cols(dataset['rare_cats'])
+        for col in job_cols:
+            for model_param in ['default', 'overfit1', 'overfit2']:
                 for rep in reps:
                     if this_job < int(job_num):
                         this_job += 1
