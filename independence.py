@@ -223,7 +223,7 @@ def do_work(job_num):
                     if this_job < int(job_num):
                         this_job += 1
                         continue
-                    res_path = os.path.join('independence_results', f'results.{dataset}.{col}.{model_param}.{rep}.json')
+                    res_path = os.path.join('independence_results', f"results.{dataset['file_name']}.{col}.{model_param}.{rep}.json")
                     if os.path.exists(res_path):
                         print(f"Results file {res_path} already exists")
                         quit()
