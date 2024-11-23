@@ -256,26 +256,6 @@ def do_work(job_num):
                     quit()
     print(f"Job {job_num} not found (this_job={this_job})")
 
-
-def compute_confidence_interval(data_list, confidence_level=0.95, n_resamples=10000):
-    # Extract precision values from the list of dictionaries
-    precision_values = [d['precision'] for d in data_list]
-
-    # Convert to a numpy array
-    precision_array = np.array(precision_values)
-
-    # Define the statistic to be estimated (e.g., mean)
-    def mean_statistic(data, axis):
-        return np.mean(data, axis=axis)
-
-    # Calculate the bootstrapped confidence interval
-    res = bootstrap((precision_array,), mean_statistic, confidence_level=confidence_level, n_resamples=n_resamples, method='percentile')
-
-    # Calculate the width of the confidence interval
-    confidence_interval_width = res.confidence_interval.high - res.confidence_interval.low
-
-    return confidence_interval_width
-
 def read_json_files_to_dataframe(directory):
     res_path = os.path.join('independence_results', 'independence_results.parquet')
     if os.path.exists(res_path):
@@ -298,23 +278,20 @@ def read_json_files_to_dataframe(directory):
             except (json.JSONDecodeError, IOError) as e:
                 print(f"Error reading file {file_path}: {e}")
                 continue
-            conf_95 = compute_confidence_interval(data['results'])    
             # Extract the relevant parameters
             row = {
-                'prec': data.get('prec'),
+                'prec_avg': data.get('prec_avg'),
+                'prec_std': data.get('prec_std'),
                 'dataset': data.get('dataset'),
                 'column': data.get('column'),
                 'replicates': data.get('replicates'),
-                'confidence_95': conf_95,
-                'conf_95_error': data.get('conf_95_error'),
-                'model_params': data.get('model_params', 'default')
+                'model_params': data.get('model_params')
             }
-            
             # Append the row to the list
             rows.append(row)
     
     # Create a DataFrame from the list of rows
-    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions', 'confidence_95', 'conf_95_error', 'model_params'])
+    df = pd.DataFrame(rows, columns=['prec_avg', 'prec_std', 'dataset', 'column', 'replicates', 'model_params'])
     df.to_parquet(res_path, index=False)
     
     return df
@@ -345,46 +322,27 @@ def do_plot():
         one_plot(df_filtered, model_param)
 
 def one_plot(df, model_param):
-    average_num_predictions = df['num_predictions'].mean()
-    max_num_predictions = df['num_predictions'].max()
-    print(f"Number of jobs with 1000 {(df['num_predictions'] == 1000).sum()}")
-    average_conf = df['confidence_95'].mean()
-    median_conf = df['confidence_95'].median()
-    max_conf = df['confidence_95'].max()
-    print(f"Average conf_int: {average_conf}, Median conf_int {median_conf}, Max conf_int: {max_conf}")
-    average_conf_err = df['conf_95_error'].mean()
-    median_conf_err = df['conf_95_error'].median()
-    max_conf_err = df['conf_95_error'].max()
-    print(f"Average conf_int_err: {average_conf_err}, Median conf_int_err {median_conf_err}, Max conf_int_err: {max_conf_err}")
-
-    # Print the results
-    print(f"Average num_predictions: {average_num_predictions}")
-    print(f"Max num_predictions: {max_num_predictions}")
     prec0_dict = {}
     for index, row in df[df['replicates'] == 0].iterrows():
         key = (row['dataset'], row['column'])
-        prec0_dict[key] = {'prec': row['prec'], 'conf_95_error': row['conf_95_error']}
+        prec0_dict[key] = row['prec_avg']
 
     # Compute the difference for each row
     def compute_difference(row):
         key = (row['dataset'], row['column'])
-        info0 = prec0_dict.get(key, None)  # Default to None if not found
-        if info0 is None:
+        prec0 = prec0_dict.get(key, None)  # Default to None if not found
+        if prec0 is None:
             return None
         else:
-            if info0['conf_95_error'] > 0.05:
-                return None
-            return row['prec'] - info0['prec']
+            return row['prec_avg'] - prec0
 
     df['difference'] = df.apply(compute_difference, axis=1)
-    df_filtered = df[df['conf_95_error'] <= 0.05]
-    print(f"Filtering out rows with less than 0.05 confidence error. Original length: {len(df)}, Filtered length: {len(df_filtered)}")
     for param in ['prec', 'difference']:
         print(f"Stats for {param}")
-        grouped = df_filtered.groupby('replicates')[param].agg(['mean', 'max', 'std', 'median', 'count']).reset_index()
+        grouped = df.groupby('replicates')[param].agg(['mean', 'max', 'std', 'median', 'count']).reset_index()
         grouped.columns = ['replicates', 'average', 'max', 'std', 'median', 'count']
         print(grouped)
-    plt = plot_boxplot(df_filtered)
+    plt = plot_boxplot(df)
     savefigs(plt, f'independence_boxplot_{model_param}')
 
 def main():
