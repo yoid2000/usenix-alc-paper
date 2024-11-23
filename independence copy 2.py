@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import random
 import matplotlib.pyplot as plt
-import statistics
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -14,12 +13,11 @@ from sklearn.metrics import accuracy_score
 from scipy.stats import bootstrap
 import json
 
-# do 'batch_size' rows at a time
 samples = 1000
-batch_size = 100
 end_error = 0.05
-rare = 0.1
+rare = 0.2
 reps = [0, 1, 2, 5, 10]
+classparams = 'default'
 
 plots_path = os.path.join('independence_results')
 if not os.path.exists(plots_path):
@@ -31,12 +29,10 @@ def savefigs(plt, name):
         out_path = os.path.join(plots_path, path_name)
         plt.savefig(out_path)
 
-def calculate_precision(df_repped_in, df_sampled_in, target_col, model_param):
+def calculate_precision(df_repped_in, df_sampled_in, target_col):
     # Make copies of the input DataFrames
     df_repped = df_repped_in.copy()
-    df_repped = df_repped.reset_index(drop=True)
     df_sampled = df_sampled_in.copy()
-    df_sampled = df_sampled.reset_index(drop=True)
 
     # Identify categorical columns
     categorical_cols = df_repped.select_dtypes(include=['object']).columns.tolist()
@@ -45,7 +41,7 @@ def calculate_precision(df_repped_in, df_sampled_in, target_col, model_param):
     df_repped[categorical_cols] = df_repped[categorical_cols].astype(str)
     df_sampled[categorical_cols] = df_sampled[categorical_cols].astype(str)
 
-    # Encode the target column
+    # Encode the target column if it is categorical
     le = LabelEncoder()
     df_repped[target_col] = le.fit_transform(df_repped[target_col])
     df_sampled[target_col] = le.transform(df_sampled[target_col])
@@ -72,9 +68,9 @@ def calculate_precision(df_repped_in, df_sampled_in, target_col, model_param):
     X_sampled = preprocessor.transform(X_sampled)
 
     # Train a RandomForestClassifier on the repped data
-    if model_param == 'default':
+    if classparams == 'default':
         model = RandomForestClassifier(random_state=42)
-    elif model_param == 'overfit1':
+    else:
         model = RandomForestClassifier(max_features='sqrt', min_samples_split=10, min_samples_leaf=4, random_state=42)
     model.fit(X_repped, y_repped)
 
@@ -105,7 +101,7 @@ def filter_rare_values(df, col):
     # Calculate the frequency of each value in the specified column
     value_counts = df[col].value_counts(normalize=True)
     
-    # Identify values that occur in fewer than X% of the rows
+    # Identify values that occur in fewer than 20% of the rows
     rare_values = value_counts[value_counts < rare].index
     
     # Filter the DataFrame to include only rows with rare values in the specified column
@@ -196,66 +192,67 @@ def job_exists(results, file_name, column, rep):
             return True
     return False
 
-
-def chunk_dataframe(df, batch_size):
-    # Get the total number of rows in the DataFrame
-    total_rows = len(df)
-    
-    # Loop over the DataFrame in chunks of 'batch_size' rows
-    for start in range(0, total_rows, batch_size):
-        # Select the chunk of rows
-        chunk = df.iloc[start:start + batch_size]
-        yield chunk
-
 def do_work(job_num):
     print(f"Running do_work with job_num {job_num}")
     data_list = read_parquet_files('original_data_parquet')
     os.makedirs('independence_results', exist_ok=True)
-    res_path = os.path.join('independence_results', f'results.{job_num}.json')
+    res_path = os.path.join('independence_results', f'results.{classparams}.{job_num}.json')
     if os.path.exists(res_path):
         print(f"Results file {res_path} already exists")
         quit()
+    # Print the file names and the first few rows of each DataFrame
     this_job = 0
-    for model_param in ['default', 'overfit1']:
-        for dataset in data_list:
-            df = dataset['dataframe']
-            job_cols = select_random_cols(dataset['rare_cats'])
-            for col in job_cols:
-                for rep in reps:
-                    if this_job < int(job_num):
-                        this_job += 1
-                        continue
-                    df_out = filter_rare_values(df, col)
-                    df_remain, df_sampled = sample_and_exclude(df, df_out)
-                    if len(df) != len(df_remain) + len(df_sampled):
-                        print(f"Error: Length mismatch for {dataset['file_name']} and column {col}")
+    for dataset in data_list:
+        df = dataset['dataframe']
+        job_cols = select_random_cols(dataset['rare_cats'])
+        for col in job_cols:
+            for rep in reps:
+                if this_job < int(job_num):
+                    this_job += 1
+                    continue
+                df_out = filter_rare_values(df, col)
+                df_remain, df_sampled = sample_and_exclude(df, df_out)
+                if len(df) != len(df_remain) + len(df_sampled):
+                    print(f"Error: Length mismatch for {dataset['file_name']} and column {col}")
+                    quit()
+                print(f"File: {dataset['file_name']}")
+                print(f"Do independence test for column {col}")
+                print(f"Do {rep} replicates")
+                matches = 0
+                num_predictions = 0
+                results = []
+                for _, row in df_sampled.iterrows():
+                    num_predictions += 1
+                    df_this_sample = pd.DataFrame([row])
+                    target_val = df_this_sample[col].values[0]
+                    df_repped = append_replicates(df_remain, df_this_sample, rep)
+                    if len(df_repped) != len(df_remain) + (len(df_this_sample) * rep):
+                        print(f"Error: Length mismatch for {dataset['file_name']} and column {col} with {rep} replicates")
                         quit()
-                    print(f"File: {dataset['file_name']}, job_num: {job_num}")
-                    print(f"Do independence test for column {col}")
-                    print(f"Do {rep} replicates")
-                    print(f"Rare values are {df_sampled[col].unique()}")
-                    print(df[col].value_counts(normalize=True))
-                    results = []
-                    #for _, row in df_sampled.iterrows():
-                    for df_this_sample in chunk_dataframe(df_sampled, batch_size):
-                        num_predictions += batch_size
-                        #df_this_sample = pd.DataFrame([row])
-                        df_repped = append_replicates(df_remain, df_this_sample, rep)
-                        if len(df_repped) != len(df_remain) + (len(df_this_sample) * rep):
-                            print(f"Error: Length mismatch for {dataset['file_name']} and column {col} with {rep} replicates")
-                            quit()
-                        prec = calculate_precision(df_repped, df_this_sample, col, model_param)
-                        results.append(prec)
-                    finals = {'prec_avg': statistics.mean(results),
-                            'prec_std': statistics.stdev(results),
+                    prec = calculate_precision(df_repped, df_this_sample, col)
+                    matches += prec
+                    results.append({'target_val': str(target_val), 'precision': prec})
+                    precidence = matches / num_predictions
+                    if num_predictions > 200:
+                        conf_95 = compute_confidence_interval(results)    
+                        conf_95_error = conf_95 / precidence
+                    else:
+                        conf_95 = 2.0
+                        conf_95_error = 2.0
+                    finals = {'prec': matches / num_predictions,
                             'dataset': dataset['file_name'],
                             'column': col,
                             'replicates': rep,
-                            'model_params': model_param,
+                            'confidence_95': conf_95,
+                            'conf_95_error': conf_95_error,
+                            'num_predictions': num_predictions,
                             'results': results}
                     with open(res_path, 'w') as json_file:
                         json.dump(finals, json_file, indent=4)
-                    quit()
+                    if conf_95_error <= end_error:
+                        print(f"Job {job_num} completed by confidence")
+                        quit()
+                quit()
     print(f"Job {job_num} not found (this_job={this_job})")
 
 
@@ -392,11 +389,8 @@ def one_plot(df, model_param):
 
 def main():
     if len(sys.argv) > 1:
-        if sys.argv[1] == 'measure':
-            if len(sys.argv) != 3:
-                print("Usage: independence.py measure <job_num>")
-                quit()
-            do_work(sys.argv[2])
+        if sys.argv[1].isdigit():
+            do_work(sys.argv[1])
         elif sys.argv[1] == 'plot':
             do_plot()
         elif sys.argv[1] == 'gather':
