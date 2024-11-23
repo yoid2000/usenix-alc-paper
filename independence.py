@@ -76,6 +76,8 @@ def calculate_precision(df_repped_in, df_sampled_in, target_col, model_param):
         model = RandomForestClassifier(random_state=42)
     elif model_param == 'overfit1':
         model = RandomForestClassifier(max_features='sqrt', min_samples_split=10, min_samples_leaf=4, random_state=42)
+    elif model_param == 'overfit2':
+        model = RandomForestClassifier(n_estimators=200, min_samples_split=10, min_samples_leaf=10, random_state=42)
     model.fit(X_repped, y_repped)
 
     # Predict the target column for the sampled data
@@ -211,12 +213,8 @@ def do_work(job_num):
     print(f"Running do_work with job_num {job_num}")
     data_list = read_parquet_files('original_data_parquet')
     os.makedirs('independence_results', exist_ok=True)
-    res_path = os.path.join('independence_results', f'results.{job_num}.json')
-    if os.path.exists(res_path):
-        print(f"Results file {res_path} already exists")
-        quit()
     this_job = 0
-    for model_param in ['default', 'overfit1']:
+    for model_param in ['default', 'overfit1', 'overfit2']:
         for dataset in data_list:
             df = dataset['dataframe']
             job_cols = select_random_cols(dataset['rare_cats'])
@@ -225,6 +223,10 @@ def do_work(job_num):
                     if this_job < int(job_num):
                         this_job += 1
                         continue
+                    res_path = os.path.join('independence_results', f'results.{dataset}.{col}.{model_param}.{rep}.json')
+                    if os.path.exists(res_path):
+                        print(f"Results file {res_path} already exists")
+                        quit()
                     df_out = filter_rare_values(df, col)
                     df_remain, df_sampled = sample_and_exclude(df, df_out)
                     if len(df) != len(df_remain) + len(df_sampled):
