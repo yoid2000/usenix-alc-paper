@@ -238,8 +238,6 @@ def do_work(job_num):
                     results = []
                     #for _, row in df_sampled.iterrows():
                     for df_this_sample in chunk_dataframe(df_sampled, batch_size):
-                        num_predictions += batch_size
-                        #df_this_sample = pd.DataFrame([row])
                         df_repped = append_replicates(df_remain, df_this_sample, rep)
                         if len(df_repped) != len(df_remain) + (len(df_this_sample) * rep):
                             print(f"Error: Length mismatch for {dataset['file_name']} and column {col} with {rep} replicates")
@@ -307,7 +305,6 @@ def read_json_files_to_dataframe(directory):
                 'dataset': data.get('dataset'),
                 'column': data.get('column'),
                 'replicates': data.get('replicates'),
-                'num_predictions': len(data.get('results')),
                 'confidence_95': conf_95,
                 'conf_95_error': data.get('conf_95_error'),
                 'model_params': data.get('model_params', 'default')
