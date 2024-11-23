@@ -306,13 +306,15 @@ def read_json_files_to_dataframe(directory):
                 'replicates': data.get('replicates'),
                 'num_predictions': len(data.get('results')),
                 'confidence_95': conf_95,
+                'conf_95_error': data.get('conf_95_error'),
+                'model_params': data.get('model_params', 'default')
             }
             
             # Append the row to the list
             rows.append(row)
     
     # Create a DataFrame from the list of rows
-    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions', 'confidence_95'])
+    df = pd.DataFrame(rows, columns=['prec', 'dataset', 'column', 'replicates', 'num_predictions', 'confidence_95', 'conf_95_error', 'model_params'])
     df.to_parquet(res_path, index=False)
     
     return df
@@ -331,11 +333,18 @@ def plot_boxplot(df):
 
     return plt
 
+def do_gather():
+    _ = read_json_files_to_dataframe('independence_results')
+
 def do_plot():
     df = read_json_files_to_dataframe('independence_results')
-    df['conf_95_error'] = df['confidence_95'] / df['prec']
     print(df.columns)
-    # Calculate the average and maximum values for the 'num_predictions' column
+    for model_param in df['model_params'].unique():
+        print(f"Model params: {model_param}")
+        df_filtered = df[df['model_params'] == model_param]
+        one_plot(df_filtered, model_param)
+
+def one_plot(df, model_param):
     average_num_predictions = df['num_predictions'].mean()
     max_num_predictions = df['num_predictions'].max()
     print(f"Number for completed jobs is {(df['num_predictions'] == 1000).sum()}")
@@ -354,16 +363,18 @@ def do_plot():
     prec0_dict = {}
     for index, row in df[df['replicates'] == 0].iterrows():
         key = (row['dataset'], row['column'])
-        prec0_dict[key] = row['prec']
+        prec0_dict[key] = {'prec': row['prec'], 'conf_95_error': row['conf_95_error']}
 
     # Compute the difference for each row
     def compute_difference(row):
         key = (row['dataset'], row['column'])
-        prec0 = prec0_dict.get(key, None)  # Default to None if not found
-        if prec0 is None:
+        info0 = prec0_dict.get(key, None)  # Default to None if not found
+        if info0 is None:
             return None
         else:
-            return row['prec'] - prec0
+            if info0['conf_95_error'] > 0.05:
+                return None
+            return row['prec'] - info0['prec']
 
     df['difference'] = df.apply(compute_difference, axis=1)
     df_filtered = df[df['conf_95_error'] <= 0.05]
@@ -375,7 +386,7 @@ def do_plot():
     grouped.columns = ['replicates', 'average_diff', 'max_diff', 'std_diff', 'median_diff']
     print(grouped)
     plt = plot_boxplot(df_filtered)
-    savefigs(plt, 'independence_boxplot')
+    savefigs(plt, f'independence_boxplot_{model_param}')
 
 def main():
     if len(sys.argv) > 1:
@@ -383,6 +394,8 @@ def main():
             do_work(sys.argv[1])
         elif sys.argv[1] == 'plot':
             do_plot()
+        elif sys.argv[1] == 'gather':
+            do_gather()
     else:
         print("No command line parameters were provided.")
 
