@@ -256,9 +256,9 @@ def do_work(job_num):
                     quit()
     print(f"Job {job_num} not found (this_job={this_job})")
 
-def read_json_files_to_dataframe(directory):
+def read_json_files_to_dataframe(directory, force=False):
     res_path = os.path.join('independence_results', 'independence_results.parquet')
-    if os.path.exists(res_path):
+    if force is False and os.path.exists(res_path):
         print(f"Reading {res_path}")
         df = pd.read_parquet(res_path)
         return df
@@ -311,10 +311,10 @@ def plot_boxplot(df):
     return plt
 
 def do_gather():
-    _ = read_json_files_to_dataframe('independence_results')
+    _ = read_json_files_to_dataframe('independence_results', force=True)
 
 def do_plot():
-    df = read_json_files_to_dataframe('independence_results')
+    df = read_json_files_to_dataframe('independence_results', force=False)
     print(df.columns)
     for model_param in df['model_params'].unique():
         print(f"Model params: {model_param}")
@@ -337,7 +337,7 @@ def one_plot(df, model_param):
             return row['prec_avg'] - prec0
 
     df['difference'] = df.apply(compute_difference, axis=1)
-    for param in ['prec', 'difference']:
+    for param in ['prec_avg', 'difference']:
         print(f"Stats for {param}")
         grouped = df.groupby('replicates')[param].agg(['mean', 'max', 'std', 'median', 'count']).reset_index()
         grouped.columns = ['replicates', 'average', 'max', 'std', 'median', 'count']
