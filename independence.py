@@ -344,6 +344,27 @@ def plot_boxplot(df):
 def do_gather():
     _ = read_json_files_to_dataframe('independence_results', force=True)
 
+def examine_bad_cases(dataframes):
+    bad_cases = {}
+    for model_param in ['overfit1', 'overfit2', 'overfit3']:
+        print(f"Model params: {model_param}")
+        dfx = dataframes[model_param]
+        filtered_df = dfx[(dfx['replicates'] == 1) & (dfx['difference'] > 0.5)]
+        print(filtered_df[['dataset', 'column', 'model_params']])
+        for index, row in filtered_df.iterrows():
+            # Create the key from 'dataset' and 'column' values
+            key = f"{row['dataset']}_{row['column']}"
+            
+            # Add the key to the bad_cases dictionary with the specified value
+            bad_cases[key] = {'dataset': row['dataset'], 'column': row['column']}
+    for key, case in bad_cases.items():
+        print(key)
+        file_path = os.path.join('original_data_parquet', case['dataset'])
+        # read the parquet file into a dataframe
+        df_temp = pd.read_parquet(file_path)
+        # display the values and their frequencies in the specified column
+        print(df_temp[case['column']].value_counts(normalize=True))
+
 def do_plot():
     df = read_json_files_to_dataframe('independence_results', force=False)
     print(df.columns)
@@ -354,9 +375,10 @@ def do_plot():
         df_filtered = df[df['model_params'] == model_param]
         df_new = one_plot(df_filtered, model_param)
         dataframes[model_param] = df_new
+    # Let's make a composite of default and overfit2
     plt = double_plot(dataframes, 'default', 'overfit2')
     savefigs(plt, 'ind_default_overfit2')
-    # Let's make a composite of default and overfit2
+    examine_bad_cases(dataframes)
 
 def one_plot(df_orig, model_param):
     df = df_orig.copy()
